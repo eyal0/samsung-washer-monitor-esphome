@@ -1,0 +1,12 @@
+# Private configuration and generated firmware (builds embed credentials)
+secrets.yaml
+secrets.yml
+.esphome/
+.pio/
+__pycache__/
+*.py[cod]
+*.bin
+*.elf
+*.map
+*.log
+.DS_Store

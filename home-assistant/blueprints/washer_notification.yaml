@@ -1,0 +1,172 @@
+blueprint:
+  name: Samsung washer — ongoing Android notification
+  description: >-
+    Shows running/paused status and the washer's displayed time in one ongoing
+    Android Companion notification using the firmware's Cycle status sensor.
+    Completed (observed CN803 pin 1 event 0E) replaces the ongoing card with a dismissible
+    Wash finished notification. Off or unknown/unavailable status clears it.
+    Displayed time may be a duration or Delay End value.
+  domain: automation
+  input:
+    status:
+      name: Cycle status
+      description: Firmware status sensor (Running, Paused, Completed, Off or Unknown).
+      selector:
+        entity:
+          domain: sensor
+    displayed_time:
+      name: Displayed time
+      selector:
+        entity:
+          domain: sensor
+    cycle_duration:
+      name: Cycle duration helper
+      description: Dedicated Number helper, minimum 0, maximum 172800, step 1, unit s. Retains the estimated cycle duration across pauses and HA restarts.
+      selector:
+        entity:
+          domain: input_number
+    navigation_path:
+      name: Washer page
+      description: Home Assistant path opened when tapping the notification.
+      default: /lovelace/0
+      selector:
+        text:
+    notify_action:
+      name: Android phone notification action
+      description: "Enter your phone's action, e.g. notify.mobile_app_pixel_9 (not a notify group)."
+      selector:
+        text:
+
+mode: restart
+
+variables:
+  status_entity: !input status
+  time_entity: !input displayed_time
+  duration_entity: !input cycle_duration
+  notification_tag: "washer_{{ status_entity | replace('.', '_') }}"
+  remaining_seconds: >-
+    {% set time = states(time_entity) %}
+    {% if time | regex_match('^[0-9]+:[0-5][0-9]$') %}
+      {% set parts = time.split(':') %}
+      {{ (parts[0] | int) * 3600 + (parts[1] | int) * 60 }}
+    {% else %}
+      -1
+    {% endif %}
+  cycle_seconds: >-
+    {{ [states(duration_entity) | int(0),
+        (remaining_seconds | int) if is_state(status_entity, 'Running') else 0] | max }}
+
+triggers:
+  - trigger: state
+    entity_id: !input status
+  - trigger: state
+    entity_id: !input displayed_time
+  - trigger: homeassistant
+    event: start
+
+actions:
+  - if:
+      - condition: template
+        value_template: >-
+          {{ is_state(status_entity, 'Running') and
+             (remaining_seconds | int) > (states(duration_entity) | int(0)) }}
+    then:
+      - action: input_number.set_value
+        target:
+          entity_id: !input cycle_duration
+        data:
+          value: "{{ cycle_seconds }}"
+  - choose:
+      - conditions: "{{ is_state(status_entity, 'Off') }}"
+        sequence:
+          - action: input_number.set_value
+            target:
+              entity_id: !input cycle_duration
+            data:
+              value: 0
+          - action: !input notify_action
+            data:
+              message: clear_notification
+              data:
+                tag: "{{ notification_tag }}"
+      - conditions: >-
+          {{ is_state(status_entity, 'Completed') }}
+        sequence:
+          - action: input_number.set_value
+            target:
+              entity_id: !input cycle_duration
+            data:
+              value: 0
+          - action: !input notify_action
+            data:
+              title: Samsung washer
+              message: Wash finished
+              data:
+                tag: "{{ notification_tag }}"
+                clickAction: !input navigation_path
+                group: appliances
+                channel: Washer status
+                importance: low
+                persistent: false
+                sticky: false
+                alert_once: true
+                notification_icon: mdi:check-circle-outline
+                chronometer: false
+                when: 0
+                progress: -1
+      - conditions: >-
+          {{ states(status_entity) in ['Running', 'Paused'] and
+             ((remaining_seconds | int) >= 0 or states(time_entity) | regex_match('^[0-9]+h$')) }}
+        sequence:
+          - action: !input notify_action
+            data:
+              title: Samsung washer
+              message: >-
+                {% set time = states(time_entity) %}
+                {% if time.endswith('h') %}
+                  Scheduled finish · {{ time }} on panel
+                {% elif time | regex_match('^[0-9]+:[0-5][0-9]$') %}
+                  {{ 'Washing · estimated time' if is_state(status_entity, 'Running') else 'Paused' }} · {{ time }} on panel
+                {% else %}
+                  Waiting for washer time
+                {% endif %}
+              data:
+                tag: "{{ notification_tag }}"
+                clickAction: !input navigation_path
+                group: appliances
+                progress: >-
+                  {% if (remaining_seconds | int) >= 0 and (cycle_seconds | int) > 0 %}
+                    {{ [0, (cycle_seconds | int) - (remaining_seconds | int)] | max }}
+                  {% else %}
+                    -1
+                  {% endif %}
+                progress_max: "{{ [cycle_seconds | int, 1] | max }}"
+                channel: Washer status
+                importance: low
+                persistent: true
+                sticky: true
+                alert_once: true
+                notification_icon: >-
+                  {{ 'mdi:timer-outline' if states(time_entity).endswith('h') else
+                  ('mdi:washing-machine' if is_state(status_entity, 'Running') else 'mdi:pause-circle-outline') }}
+                chronometer: >-
+                  {{ is_state(status_entity, 'Running') and
+                     states(time_entity) | regex_match('^[0-9]+:[0-5][0-9]$') and
+                     states(time_entity) != '0:00' }}
+                when: >-
+                  {% set time = states(time_entity) %}
+                  {% if is_state(status_entity, 'Running') and time | regex_match('^[0-9]+:[0-5][0-9]$') %}
+                    {% set parts = time.split(':') %}
+                    {% set seconds = (parts[0] | int) * 3600 + (parts[1] | int) * 60 %}
+                    {% set anchor = [as_timestamp(states[time_entity].last_changed),
+                                     as_timestamp(states[status_entity].last_changed)] | max %}
+                    {{ (anchor + seconds) | int }}
+                  {% else %}
+                    0
+                  {% endif %}
+    default:
+      - action: !input notify_action
+        data:
+          message: clear_notification
+          data:
+            tag: "{{ notification_tag }}"
