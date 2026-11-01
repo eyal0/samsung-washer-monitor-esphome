@@ -40,8 +40,8 @@ The photo above marks **CN803** (main harness) and **CN201** (programming header
 
 | Pin | Reference signal | My checks / monitor connection |
 | --- | --- | --- |
-| 1 | MAIN_UI_RX | UART captured; divider to ESP GPIO1 |
-| 2 | MAIN_UI_TX | UART captured; divider to ESP GPIO2 |
+| 1 | MAIN_UI_RX | UART captured; 5 V→3.3 V level translation to ESP GPIO1 |
+| 2 | MAIN_UI_TX | UART captured; 5 V→3.3 V level translation to ESP GPIO2 |
 | 3 | RESET | Not verified; leave untouched |
 | 4 | 5 V | Continuity to CN201 pin 1 |
 | 5 | SGND | Ground; continuity to CN201 pin 2 |
@@ -71,6 +71,9 @@ These power/ground assignments come from my continuity and operating-voltage che
 
 I just used Scotch tape to stick the ESP into an empty space. Budget engineering at its finest. Poor installation? Absolutely :D I power it from the **5 V supply on the panel's programming port (CN201)**.
 
+> [!WARNING]
+> **Not recommended:** the resistor voltage divider shown below is just my prototype hack. Use a proper **5 V→3.3 V UART level shifter** instead.
+
 The resistors in the wiring photo are **voltage dividers for the washer's 5 V UART signals**, using **10 kΩ and 20 kΩ**. My multimeter's resistance range was broken, so I stuck with 10 kΩ resistors: each 20 kΩ leg is simply two 10 kΩ resistors in series. That's why there are so many resistors in the photo!
 
 Each UART signal has its **own** divider, wired like this:
@@ -85,7 +88,14 @@ Samsung ground ────────┴── ESP GND
 
 Repeat for **CN803 pin 1 → GPIO1** and **CN803 pin 2 → GPIO2**; do not join the two signal lines. Ground is **CN803 pin 5 / CN201 pin 2**. At nominal 5 V, this divider produces about **3.33 V**; verify actual signal levels and resistor tolerances against your ESP's input limits before use.
 
-This is my prototype, not a recommended permanent mounting method or a qualified wiring guide. The dividers do not provide galvanic isolation, and the port's 5 V supply does not establish mains isolation.
+> [!IMPORTANT]
+> **If you build this yourself, prefer a proper 5 V→3.3 V UART level shifter rather than copying the resistor dividers.** I used dividers because I already had 10 kΩ resistors on hand and only needed 9600 baud receive. A passive divider has real limitations:
+> - **Tight voltage margin:** 10 kΩ / 20 kΩ turns 5.00 V into ~3.33 V, leaving little headroom if the washer's 5 V rail runs high or resistor tolerances shift the ratio.
+> - **Power-off / back-powering behavior:** if the washer drives UART high while the ESP is unpowered, current can flow into the ESP input protection network.
+> - **Higher source impedance:** resistor dividers and wiring capacitance slow signal edges and reduce noise margin compared with a level shifter.
+> - **Receive-only (`5 V → 3.3 V`):** a passive divider only steps voltage down; it cannot step a 3.3 V ESP TX output up to 5 V.
+
+This is my prototype, not a recommended permanent mounting method or a qualified wiring guide.
 
 ## Hardware tested
 
@@ -102,7 +112,7 @@ For other washers, check your installed panel and verify the electrical interfac
 > [!WARNING]
 > **Before attempting this project, unplug the washing machine from the mains socket. Switching it off at the control panel is not sufficient.** Do not open the appliance or touch internal wiring while it is connected to mains power. Unplugging does not guarantee that internal capacitors have discharged; if you are not qualified to work safely on mains-powered appliances, do not proceed.
 
-**Mains appliance: the receive interface, power arrangement, isolation and off-state behavior have not been qualified.** ESP32 GPIO is not 5 V tolerant; resistor dividers and receive-only firmware do not provide galvanic isolation.
+**Mains appliance: the receive interface, power arrangement and off-state behavior have not been qualified.** ESP32 GPIO is not 5 V tolerant.
 
 Disconnect mains before changing wiring. **Disconnect every washer lead, including ground and power, before connecting USB for flashing or recovery.** Never attach USB, a PC or grounded test equipment while connected to the washer. Use Wi-Fi for logs and OTA. If you cannot establish a safe interface and enclosure, do not install this modification.
 
@@ -116,12 +126,12 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
 2. Add the entries from [`secrets.example.yaml`](firmware/secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
 3. Review the board configuration and RX substitutions. My tested wiring matches the ESP32-C6 defaults:
 
-   | Samsung CN803 harness | Through voltage divider to ESP |
+   | Samsung CN803 harness | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
    | --- | --- |
    | Pin 1 | GPIO1 |
    | Pin 2 | GPIO2 |
 
-   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO.
+   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
 4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use Wi-Fi OTA.
 5. In Home Assistant, add the **ESPHome** integration with the monitor's address and encryption key. Compare readings with the panel before building automations.
 
