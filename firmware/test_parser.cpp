@@ -1,4 +1,4 @@
-#include "washer_parser.h"
+#include "../components/samsung_washer/washer_parser.h"
 #include <cassert>
 #include <fstream>
 #include <iterator>
@@ -6,6 +6,50 @@
 
 int main(int argc, char **argv) {
   assert(argc == 4);
+  for (size_t length : {30, 32}) {
+    std::vector<uint8_t> frame(length, 0);
+    frame[0] = 0x5a;
+    frame[1] = 0xa5;
+    uint16_t crc = 0xffff;
+    for (size_t i = 0; i < length - 2; ++i) {
+      crc ^= uint16_t(frame[i]) << 8;
+      for (int bit = 0; bit < 8; ++bit)
+        crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
+    }
+    frame[length - 2] = crc >> 8;
+    frame[length - 1] = crc & 0xff;
+    WasherParser framing(length);
+    int frames = 0;
+    auto feed = [&](const std::vector<uint8_t> &bytes) {
+      for (auto b : bytes) framing.feed(b, [&](const std::vector<uint8_t> &p) {
+        assert(p == frame);
+        ++frames;
+      });
+    };
+    feed({0xff, 0, 0x5a, 0x5a}); // Noise and repeated header prefix.
+    feed(frame);
+    feed(frame); // Back-to-back frames.
+    assert(frames == 2);
+    auto corrupt = frame;
+    corrupt[7] ^= 1;
+    feed(corrupt);
+    assert(frames == 2); // Bad CRC must not reach the callback.
+    auto dropped = frame;
+    dropped.erase(dropped.begin() + 7);
+    feed(dropped);
+    feed(frame);
+    assert(frames == 3); // Recover a header inside a rejected frame.
+    auto inserted = frame;
+    inserted.insert(inserted.begin() + 7, 0xff);
+    feed(inserted);
+    feed(frame);
+    assert(frames == 4);
+    // Framing state belongs to the parser instance, not the other UART.
+    WasherParser other(length);
+    other.feed(0x5a, [](const std::vector<uint8_t> &) { assert(false); });
+    feed(frame);
+    assert(frames == 5);
+  }
   std::ifstream file(argv[1], std::ios::binary);
   assert(file);
   std::vector<uint8_t> bytes{std::istreambuf_iterator<char>(file), {}};

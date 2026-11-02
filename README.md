@@ -17,7 +17,7 @@ The actual Home Assistant device-page **Sensors** card, with the entity icons co
 - Program, temperature, spin, rinse and option selections, plus Bubble Soak and Easy Iron indicators.
 - Displayed time, including Delay End.
 - **Cycle status:** `Running`, `Paused`, `Completed`, `Off`, `Unknown`.
-- Door-lock indicator, panel-on and UART-link diagnostics, plus an optional raw-capture switch.
+- Panel-on and door-lock indicators, a UART-link diagnostic, plus an optional raw-capture switch.
 - An optional Android progress/countdown and wash-finished notification through Home Assistant.
 
 These are panel readings, not measured water temperature, drum speed or wash stages. The door-lock entity reports the panel's door-lock indicator.
@@ -72,7 +72,7 @@ These power/ground assignments come from my continuity and operating-voltage che
 I just used Scotch tape to stick the ESP into an empty space. Budget engineering at its finest. Poor installation? Absolutely :D I power it from the **5 V supply on the panel's programming port (CN201)**.
 
 > [!WARNING]
-> **Not recommended:** the resistor voltage divider shown below is just my prototype hack. Use a proper **5 V→3.3 V UART level shifter** instead.
+> **Not recommended:** the resistor voltage dividers in the photo above and the diagram below are just my prototype hack. Use a proper **5 V→3.3 V UART level shifter** instead.
 
 The resistors in the wiring photo are **voltage dividers for the washer's 5 V UART signals**, using **10 kΩ and 20 kΩ**. My multimeter's resistance range was broken, so I stuck with 10 kΩ resistors: each 20 kΩ leg is simply two 10 kΩ resistors in series. That's why there are so many resistors in the photo!
 
@@ -103,7 +103,7 @@ This is my prototype, not a recommended permanent mounting method or a qualified
 - **Washer:** Samsung WW11BGA046.
 - **ESP board:** ESP32-C6 SuperMini.
 
-I used an ESP32-C6, but a C6 is not required. Other ESPHome-supported ESP boards should work too, provided they have two usable UART RX channels. Adjust the board, framework, logger and RX pins in the configuration for your hardware; only the C6 has been tested here.
+I used an ESP32-C6, but a C6 is not required. Other ESPHome-supported ESP boards should work too, provided they have one usable UART RX channel for the readings (two if you also want CN803 pin 2 raw diagnostics, as in the example configuration). Adjust the board, framework, logger and RX pins in the configuration for your hardware; only the C6 has been tested here.
 
 For other washers, check your installed panel and verify the electrical interface, packet format and decoded readings. Reports from other washers and ESP boards are welcome!
 
@@ -122,7 +122,7 @@ Samsung's [official English repair guide](https://downloadcenter.samsung.com/con
 
 Follow the official [ESPHome installation guide](https://esphome.io/install/) and [Device Builder getting-started guide](https://esphome.io/install/getting-started/).
 
-1. Put [`washer.yaml`](firmware/washer.yaml) and [`washer_parser.h`](firmware/washer_parser.h) together in your Device Builder configuration directory.
+1. Copy [`washer.yaml`](firmware/washer.yaml) into your Device Builder configuration directory (or add the `external_components`, `uart` and `samsung_washer` blocks to an existing ESPHome YAML). ESPHome fetches the [`samsung_washer`](components/samsung_washer/) external component from this repository automatically.
 2. Add the entries from [`secrets.example.yaml`](firmware/secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
 3. Review the board configuration and RX substitutions. My tested wiring matches the ESP32-C6 defaults:
 
@@ -134,6 +134,18 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
    Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
 4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use Wi-Fi OTA.
 5. In Home Assistant, add the **ESPHome** integration with the monitor's address and encryption key. Compare readings with the panel before building automations.
+
+### Component configuration
+
+The [`washer.yaml`](firmware/washer.yaml) example contains all supported entities. Under `samsung_washer`:
+
+- `uart_id` selects the **CN803 pin 1** UART: 9600 baud, 8 data bits, no parity, 1 stop bit. This stream supplies all readings.
+- `secondary_uart_id` optionally selects the **CN803 pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
+- Every entity block is optional. Standard ESPHome entity options such as `id`, `icon`, filters and automations remain available. Tracking does not depend on which entities you expose.
+- `uart_raw_capture` adds the diagnostic switch; it defaults to off after reboot. While on, it logs the raw bytes of pin 1 (and pin 2, if `secondary_uart_id` is set) as hex under the `washer.raw` log tag, including malformed data, without transmitting anything.
+- `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and resets cycle status to Unknown; a blank panel must persist for two seconds before reporting Off.
+
+No parser header or YAML lambdas need to be copied. When updating an existing installation, remove the old `includes: washer_parser.h`, washer globals/interval, template entities and UART debug lambdas before adding the new component blocks. The example keeps the old entity names, so Home Assistant entity IDs stay the same; don't rename them if you want to keep your history and automations. The old template entities' ESPHome `id` values (such as `cycle_status` or `packet_diagnostics`) are not set by default; if your own YAML refers to them, add the `id` to the matching entity block.
 
 ## Android notifications
 
@@ -147,7 +159,31 @@ Allow Companion app notifications on the phone. Progress is estimated from the f
 
 ## Contributing
 
-Report the exact model/board, expected reading and actual panel behavior. For decoding issues, enable **UART raw capture**, save a short **Wi-Fi** log around one action, then turn capture off. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep firmware receive-only.
+Report the exact model/board, expected reading and actual panel behavior. For decoding issues, turn on the **UART raw capture** switch (configured with `uart_raw_capture`), save a short **Wi-Fi** log around one action, then turn capture off. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep firmware receive-only.
+
+### Development checks
+
+Run from this repository's root, with a C++ compiler and ESPHome installed in the Python environment that runs the tests:
+
+```sh
+python -m unittest discover -s tests -p 'test_*.py'
+g++ -std=c++17 -Wall -Wextra -pedantic firmware/test_parser.cpp -o /tmp/washer-parser-test
+/tmp/washer-parser-test /dev/null 32 0
+esphome compile tests/component.yaml
+tests/.esphome/build/washer-component-test/.pioenvs/washer-component-test/program
+```
+
+The runtime tests build against ESPHome's actual entities and filters on a Linux/macOS host, using in-memory UARTs, not the washer. They cover decoding, cycle tracking, optional/filtered entities, link loss, switch restoration and receive-only behavior. The parser test also accepts a binary capture, frame length and expected valid-frame count as arguments.
+
+To compile `firmware/washer.yaml` against a local checkout before publishing, replace its external component source with:
+
+```yaml
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [samsung_washer]
+```
 
 ## License
 

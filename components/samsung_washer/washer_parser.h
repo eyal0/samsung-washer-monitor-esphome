@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <functional>
@@ -86,11 +87,6 @@ class WasherCycleStatus {
   bool pending_ = false;
   const char *state_ = "Unknown";
 };
-
-inline WasherCycleStatus &washer_cycle_tracker() {
-  static WasherCycleStatus tracker;
-  return tracker;
-}
 
 inline const char *washer_option(uint8_t indicators) {
   switch (indicators & 0x0c) {

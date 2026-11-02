@@ -5,8 +5,6 @@ substitutions:
 esphome:
   name: samsung-washer
   friendly_name: Samsung washer
-  includes:
-    - washer_parser.h
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -29,200 +27,44 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-globals:
-  - id: last_cn803_pin1_ms
-    type: uint32_t
-    initial_value: '0'
-  - id: blank_since_ms
-    type: uint32_t
-    initial_value: '0'
-
-interval:
-  - interval: 2s
-    then:
-      - lambda: |-
-          bool online = id(last_cn803_pin1_ms) != 0 && (millis() - id(last_cn803_pin1_ms)) < 5000;
-          if (!id(link_active).has_state() || id(link_active).state != online) id(link_active).publish_state(online);
-          if (!online) {
-            id(blank_since_ms) = 0;
-            washer_cycle_tracker().reset();
-            if (id(panel_on).has_state()) id(panel_on).invalidate_state();
-            if (id(cycle_status).state != "Unknown") id(cycle_status).publish_state("Unknown");
-          }
-
-switch:
-  - platform: template
-    name: UART raw capture
-    id: packet_diagnostics
-    icon: mdi:code-braces
-    optimistic: true
-    restore_mode: ALWAYS_OFF
-    entity_category: diagnostic
-
-text_sensor:
-  - platform: template
-    name: Cycle status
-    id: cycle_status
-    icon: mdi:washing-machine
-  - platform: template
-    name: Program indicator
-    id: program_indicator
-    icon: mdi:washing-machine
-  - platform: template
-    name: Temperature selection
-    id: temperature_selection
-    icon: mdi:thermometer
-  - platform: template
-    name: Spin selection
-    id: spin_selection
-    icon: mdi:rotate-right
-  - platform: template
-    name: Rinse selection
-    id: rinse_selection
-    icon: mdi:water
-  - platform: template
-    name: Displayed time
-    id: displayed_time
-    icon: mdi:timer-outline
-  - platform: template
-    name: Option
-    id: option_selection
-    icon: mdi:tune-variant
-
-binary_sensor:
-  - platform: template
-    name: Panel on
-    id: panel_on
-    icon: mdi:power
-  - platform: template
-    name: UART link active
-    id: link_active
-    icon: mdi:lan-connect
-    entity_category: diagnostic
-  - platform: template
-    name: Bubble Soak indicator
-    id: bubble_indicator
-    icon: mdi:chart-bubble
-  - platform: template
-    name: Easy Iron indicator
-    id: iron_indicator
-    icon: mdi:iron-outline
-  - platform: template
-    name: Door lock indicator
-    id: lock_indicator
-    icon: mdi:lock
-    entity_category: diagnostic
+external_components:
+  - source: github://kralonur/samsung-washer-monitor-esphome@main
+    components: [samsung_washer]
 
 uart:
   - id: cn803_pin2_uart
     rx_pin: ${cn803_pin2_rx_pin}
     baud_rate: 9600
-    debug:
-      direction: RX
-      dummy_receiver: true
-      after:
-        bytes: 32
-        timeout: 50ms
-      sequence:
-        - lambda: |-
-            if (id(packet_diagnostics).state)
-              ESP_LOGI("washer.raw", "CN803 pin 2 %u %s", millis(), format_hex_pretty(bytes.data(), bytes.size()).c_str());
-            static WasherParser parser(30);
-            for (auto b : bytes) parser.feed(b, [](const std::vector<uint8_t> &) {});
   - id: cn803_pin1_uart
     rx_pin: ${cn803_pin1_rx_pin}
     baud_rate: 9600
-    debug:
-      direction: RX
-      dummy_receiver: true
-      after:
-        bytes: 32
-        timeout: 50ms
-      sequence:
-        - lambda: |-
-            if (id(packet_diagnostics).state)
-              ESP_LOGI("washer.raw", "CN803 pin 1 %u %s", millis(), format_hex_pretty(bytes.data(), bytes.size()).c_str());
-            static WasherParser parser(32);
-            for (auto b : bytes) parser.feed(b, [&](const std::vector<uint8_t> &p) {
-              id(last_cn803_pin1_ms) = millis();
-              washer_cycle_tracker().feed(p[23], p[18] != 0 || p[20] != 0);
-              bool panel_lit = false;
-              for (size_t i = 2; i < 22; i++) panel_lit |= p[i] != 0;
-              if (panel_lit) {
-                id(blank_since_ms) = 0;
-                if (!id(panel_on).has_state() || !id(panel_on).state) id(panel_on).publish_state(true);
-              } else {
-                if (id(blank_since_ms) == 0) id(blank_since_ms) = millis();
-                if (millis() - id(blank_since_ms) >= 2000 &&
-                    (!id(panel_on).has_state() || id(panel_on).state)) {
-                  id(panel_on).publish_state(false);
-                  washer_cycle_tracker().reset();
-                }
-              }
-              const char *status = id(panel_on).has_state() ? washer_cycle_tracker().status(id(panel_on).state) : "Unknown";
-              if (id(cycle_status).state != status) id(cycle_status).publish_state(status);
-              // Program indicators blink in some states. Blank is not a new program.
-              const char *program = nullptr;
-              if (p[20] == 0) {
-                switch (p[18]) {
-                  case 0x20: program = "Eco 40-60"; break;
-                  case 0x08: program = "Cotton"; break;
-                  case 0x10: program = "Synthetics"; break;
-                  case 0x04: program = "Hygiene Steam"; break;
-                  case 0x02: program = "Rinse+Spin"; break;
-                  case 0x01: program = "Drain/Spin"; break;
-                  case 0x40: program = "Drum Clean"; break;
-                }
-              } else if (p[18] == 0) {
-                switch (p[20]) {
-                  case 0x40: program = "Bedding"; break;
-                  case 0x01: program = "Colours"; break;
-                  case 0x02: program = "Intense Cold"; break;
-                  case 0x04: program = "Wool"; break;
-                  case 0x10: program = "Delicates"; break;
-                  case 0x08: program = "Mixed Load"; break;
-                  case 0x20: program = "15' Quick Wash"; break;
-                }
-              }
-              if (program && id(program_indicator).state != program) id(program_indicator).publish_state(program);
-              const char *temp = nullptr;
-              switch (p[16]) {
-                case 0: temp = "No indicator"; break; case 0x10: temp = "20 °C"; break;
-                case 0x08: temp = "30 °C"; break; case 0x04: temp = "40 °C"; break;
-                case 0x02: temp = "60 °C"; break; case 0x01: temp = "90 °C"; break;
-                case 0x06: temp = "40 and 60 indicators"; break;
-                default: temp = "Unknown";
-              }
-              if (id(temperature_selection).state != temp) id(temperature_selection).publish_state(temp);
-              const char *spin = nullptr;
-              switch (p[12]) {
-                case 0: spin = "No indicator (Rinse Hold)"; break; case 0x10: spin = "No Spin"; break;
-                case 0x08: spin = "400 rpm"; break; case 0x04: spin = "800 rpm"; break;
-                case 0x02: spin = "1200 rpm"; break; case 0x01: spin = "1400 rpm"; break;
-                default: spin = "Unknown";
-              }
-              if (id(spin_selection).state != spin) id(spin_selection).publish_state(spin);
-              const char *rinse = nullptr;
-              switch (p[14]) {
-                case 0: rinse = "No indicator"; break; case 0x10: rinse = "1"; break;
-                case 0x08: rinse = "2"; break; case 0x04: rinse = "3"; break;
-                case 0x02: rinse = "4"; break; case 0x01: rinse = "5"; break;
-                default: rinse = "Unknown";
-              }
-              if (id(rinse_selection).state != rinse) id(rinse_selection).publish_state(rinse);
-              auto update = [](binary_sensor::BinarySensor *s, bool v) { if (!s->has_state() || s->state != v) s->publish_state(v); };
-              update(id(bubble_indicator), p[10] & 0x02);
-              update(id(iron_indicator), p[10] & 0x01);
-              const char *option = washer_option(p[10]);
-              if (id(option_selection).state != option) id(option_selection).publish_state(option);
-              update(id(lock_indicator), p[5] & 0x01);
-              int minutes = washer_time_minutes(p[4], p[6], p[8]);
-              char display[32];
-              int delay_hours = washer_delay_hours(p[4], p[6], p[8]);
-              if (delay_hours >= 0)
-                snprintf(display, sizeof(display), "%dh", delay_hours);
-              else if (minutes >= 0)
-                snprintf(display, sizeof(display), "%d:%02d", minutes / 60, minutes % 60);
-              else snprintf(display, sizeof(display), "Unknown / non-time display");
-              if (id(displayed_time).state != display) id(displayed_time).publish_state(display);
-            });
+
+samsung_washer:
+  uart_id: cn803_pin1_uart
+  secondary_uart_id: cn803_pin2_uart
+  cycle_status:
+    name: Cycle status
+  program_indicator:
+    name: Program indicator
+  temperature_selection:
+    name: Temperature selection
+  spin_selection:
+    name: Spin selection
+  rinse_selection:
+    name: Rinse selection
+  displayed_time:
+    name: Displayed time
+  option:
+    name: Option
+  panel_on:
+    name: Panel on
+  uart_link_active:
+    name: UART link active
+  bubble_soak_indicator:
+    name: Bubble Soak indicator
+  easy_iron_indicator:
+    name: Easy Iron indicator
+  door_lock_indicator:
+    name: Door lock indicator
+  uart_raw_capture:
+    name: UART raw capture

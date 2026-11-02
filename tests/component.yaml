@@ -1,0 +1,42 @@
+# Run with: esphome compile tests/component.yaml
+# Then: tests/.esphome/build/washer-component-test/.pioenvs/washer-component-test/program
+esphome:
+  name: washer-component-test
+  includes:
+    - test_component.h
+  on_boot:
+    # Run before the real UART opens; the tests supply an in-memory UART.
+    priority: 1000
+    then:
+      - lambda: samsung_washer::test::run();
+
+host:
+logger:
+  level: WARN
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [samsung_washer]
+
+uart:
+  id: test_uart
+  port: /dev/null
+  baud_rate: 9600
+
+samsung_washer:
+  uart_id: test_uart
+
+# Compile the actual ESPHome filter pipelines for regression tests.
+binary_sensor:
+  - platform: template
+    name: Test filter
+    filters:
+      - invert:
+
+text_sensor:
+  - platform: template
+    name: Test text filter
+    filters:
+      - lambda: return x;
