@@ -120,18 +120,22 @@ Samsung's [official English repair guide](https://downloadcenter.samsung.com/con
 
 ## Setup
 
-Follow the official [ESPHome installation guide](https://esphome.io/install/) and [Device Builder getting-started guide](https://esphome.io/install/getting-started/).
+Follow the official [ESPHome installation guide](https://esphome.io/install/) and [Device Builder getting-started guide](https://esphome.io/install/getting-started/). Use ESPHome **2026.10** or newer.
 
-1. Put [`washer.yaml`](firmware/washer.yaml) and [`washer_parser.h`](firmware/washer_parser.h) together in your Device Builder configuration directory.
-2. Add the entries from [`secrets.example.yaml`](firmware/secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
+[`samsung-washer.yaml`](samsung-washer.yaml) is a device configuration for the `samsung_washer` external component in this repository. Leave the C++ sources here; ESPHome loads them through `external_components`.
+
+1. Copy [`samsung-washer.yaml`](samsung-washer.yaml) into your Device Builder configuration directory.
+2. Add the entries from [`secrets.example.yaml`](secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
 3. Review the board configuration and RX substitutions. My tested wiring matches the ESP32-C6 defaults:
 
    | Samsung CN803 harness | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
    | --- | --- |
-   | Pin 1 | GPIO1 |
-   | Pin 2 | GPIO2 |
+   | Pin 1 | GPIO1 (`uart_id`, decoded) |
+   | Pin 2 | GPIO2 (`raw_uart_id`, raw capture only) |
 
-   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
+   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers. `raw_uart_id` is optional. Decoded readings come from pin 1.
+
+   To compile from a checkout of this repository, point `external_components` at the local `components` directory. The comment in `samsung-washer.yaml` shows that source.
 4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use Wi-Fi OTA.
 5. In Home Assistant, add the **ESPHome** integration with the monitor's address and encryption key. Compare readings with the panel before building automations.
 
@@ -147,7 +151,13 @@ Allow Companion app notifications on the phone. Progress is estimated from the f
 
 ## Contributing
 
-Report the exact model/board, expected reading and actual panel behavior. For decoding issues, enable **UART raw capture**, save a short **Wi-Fi** log around one action, then turn capture off. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep firmware receive-only.
+Report the exact model/board, expected reading and actual panel behavior. For decoding issues, enable **UART raw capture**, save a short **Wi-Fi** log around one action, then turn capture off. Raw lines are tagged `samsung_washer.raw`. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep the component receive-only.
+
+The decoder has a host test. A capture file is optional:
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror -I components/samsung_washer -o /tmp/test_parser tests/test_parser.cpp && /tmp/test_parser
+```
 
 ## License
 

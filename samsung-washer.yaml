@@ -1,0 +1,93 @@
+# Samsung DC92-01950B washer panel monitor.
+# Receive-only: both UARTs are RX. Do not connect the washer's 5 V UART
+# directly to the ESP. See README.md for wiring and safety.
+#
+# ESPHome 2026.10 or newer. Copy this file into the Device Builder
+# configuration directory and fill secrets.yaml from secrets.example.yaml.
+#
+# From a checkout of this repository, replace external_components with:
+#   - source:
+#       type: local
+#       path: components
+
+substitutions:
+  cn803_pin1_rx_pin: GPIO1
+  cn803_pin2_rx_pin: GPIO2
+
+esphome:
+  name: samsung-washer
+  friendly_name: Samsung washer
+  min_version: 2026.10.0
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+external_components:
+  - source: github://eyal0/samsung-washer-monitor-esphome
+    components: [samsung_washer]
+
+logger:
+  level: DEBUG
+  # Keep the logger off the panel UARTs. USB_SERIAL_JTAG is the ESP32-C6 USB port.
+  hardware_uart: USB_SERIAL_JTAG
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+uart:
+  - id: cn803_pin1
+    rx_pin: ${cn803_pin1_rx_pin}
+    baud_rate: 9600
+  - id: cn803_pin2
+    rx_pin: ${cn803_pin2_rx_pin}
+    baud_rate: 9600
+
+samsung_washer:
+  uart_id: cn803_pin1
+  raw_uart_id: cn803_pin2
+
+text_sensor:
+  - platform: samsung_washer
+    cycle_status:
+      name: Cycle status
+    program:
+      name: Program indicator
+    temperature:
+      name: Temperature selection
+    spin:
+      name: Spin selection
+    rinse:
+      name: Rinse selection
+    displayed_time:
+      name: Displayed time
+    option:
+      name: Option
+
+binary_sensor:
+  - platform: samsung_washer
+    panel_on:
+      name: Panel on
+    uart_link:
+      name: UART link active
+    bubble_soak:
+      name: Bubble Soak indicator
+    easy_iron:
+      name: Easy Iron indicator
+    door_lock:
+      name: Door lock indicator
+
+switch:
+  - platform: samsung_washer
+    raw_capture:
+      name: UART raw capture
