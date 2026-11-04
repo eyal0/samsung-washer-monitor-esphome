@@ -1,0 +1,73 @@
+substitutions:
+  cn803_pin2_rx_pin: GPIO2
+  cn803_pin1_rx_pin: GPIO1
+
+esphome:
+  name: samsung-washer
+  friendly_name: Samsung washer
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# Network: Thread. For Wi-Fi, use washer.yaml instead.
+network:
+  enable_ipv6: true
+
+# Thread credentials live in their own file (see secrets-thread.example.yaml).
+openthread: !include secrets-thread.yaml
+
+external_components:
+  - source: github://kralonur/samsung-washer-monitor-esphome@main
+    components: [samsung_washer]
+
+uart:
+  - id: cn803_pin2_uart
+    rx_pin: ${cn803_pin2_rx_pin}
+    baud_rate: 9600
+  - id: cn803_pin1_uart
+    rx_pin: ${cn803_pin1_rx_pin}
+    baud_rate: 9600
+
+samsung_washer:
+  uart_id: cn803_pin1_uart
+  secondary_uart_id: cn803_pin2_uart
+  cycle_status:
+    name: Cycle status
+  program_indicator:
+    name: Program indicator
+  temperature_selection:
+    name: Temperature selection
+  spin_selection:
+    name: Spin selection
+  rinse_selection:
+    name: Rinse selection
+  displayed_time:
+    name: Displayed time
+  option:
+    name: Option
+  panel_on:
+    name: Panel on
+  uart_link_active:
+    name: UART link active
+  bubble_soak_indicator:
+    name: Bubble Soak indicator
+  easy_iron_indicator:
+    name: Easy Iron indicator
+  door_lock_indicator:
+    name: Door lock indicator
+  uart_raw_capture:
+    name: UART raw capture

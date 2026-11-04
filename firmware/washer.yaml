@@ -23,6 +23,7 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+# Network: Wi-Fi. For Thread, use washer-thread.yaml instead.
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password

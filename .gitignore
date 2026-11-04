@@ -1,5 +1,6 @@
 # Private configuration and generated firmware (builds embed credentials)
 secrets.yaml
+secrets-thread.yaml
 secrets.yml
 .esphome/
 .pio/

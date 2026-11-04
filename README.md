@@ -114,7 +114,7 @@ For other washers, check your installed panel and verify the electrical interfac
 
 **Mains appliance: the receive interface, power arrangement and off-state behavior have not been qualified.** ESP32 GPIO is not 5 V tolerant.
 
-Disconnect mains before changing wiring. **Disconnect every washer lead, including ground and power, before connecting USB for flashing or recovery.** Never attach USB, a PC or grounded test equipment while connected to the washer. Use Wi-Fi for logs and OTA. If you cannot establish a safe interface and enclosure, do not install this modification.
+Disconnect mains before changing wiring. **Disconnect every washer lead, including ground and power, before connecting USB for flashing or recovery.** Never attach USB, a PC or grounded test equipment while connected to the washer. Use the network (Wi-Fi or Thread) for logs and OTA. If you cannot establish a safe interface and enclosure, do not install this modification.
 
 Samsung's [official English repair guide](https://downloadcenter.samsung.com/content/EU/202507/20250709163659233/Repair_Guide_Washer_English.pdf) does not qualify this modification.
 
@@ -132,7 +132,7 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
    | Pin 2 | GPIO2 |
 
    Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
-4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use Wi-Fi OTA.
+4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use network OTA (Wi-Fi or Thread).
 5. In Home Assistant, add the **ESPHome** integration with the monitor's address and encryption key. Compare readings with the panel before building automations.
 
 ### Component configuration
@@ -147,6 +147,21 @@ The [`washer.yaml`](firmware/washer.yaml) example contains all supported entitie
 
 No parser header or YAML lambdas need to be copied. When updating an existing installation, remove the old `includes: washer_parser.h`, washer globals/interval, template entities and UART debug lambdas before adding the new component blocks. The example keeps the old entity names, so Home Assistant entity IDs stay the same; don't rename them if you want to keep your history and automations. The old template entities' ESPHome `id` values (such as `cycle_status` or `packet_diagnostics`) are not set by default; if your own YAML refers to them, add the `id` to the matching entity block.
 
+### Thread instead of Wi-Fi
+
+The ESP32-C6 also has a Thread (802.15.4) radio. [`washer-thread.yaml`](firmware/washer-thread.yaml) is the same configuration with Wi-Fi replaced by ESPHome's [OpenThread component](https://esphome.io/components/openthread/). ESPHome cannot run Wi-Fi and Thread together on one ESP, so the API, logs and OTA updates all go over Thread. It needs an ESP with an 802.15.4 radio (ESP32-C6, C5 or H2) and a Thread border router that Home Assistant can reach.
+
+1. Get your Thread network's active dataset as a hex TLV string. In Home Assistant, go to **Settings → Devices & services → Thread**, open your preferred network, and use its dataset/TLV option (this needs a border router that Home Assistant manages, such as the OpenThread Border Router add-on). Alternatively, run `ot-ctl dataset active -x` on an OpenThread border router.
+2. Copy [`secrets-thread.example.yaml`](firmware/secrets-thread.example.yaml) to `secrets-thread.yaml` next to `washer-thread.yaml`, and put the TLV in it. Your existing `secrets.yaml` still provides the API key and OTA password; its Wi-Fi entries are unused. The dataset contains your Thread network key, so keep this file private.
+
+   ESPHome's `!secret` only reads `secrets.yaml`, so this file is loaded with `!include` instead. As a result, ESPHome does not redact it like other secrets: `esphome config` prints the TLV, so don't share that output. Device Builder also lists `secrets-thread.yaml` as a device card; ignore that card and don't install it.
+3. Validate and install `washer-thread.yaml` instead of `washer.yaml`. Then add the device in Home Assistant through the ESPHome integration, if it is not discovered automatically.
+
+The device joins as a full Thread device (`FTD`), so it can also act as a router for your other Thread devices, since it is mains-powered.
+
+> [!WARNING]
+> Switching an installed monitor from Wi-Fi to Thread happens over the last Wi-Fi OTA update. If the Thread dataset is wrong or Home Assistant cannot reach the Thread network, the monitor drops off the network, and recovery needs USB flashing, which means disconnecting every washer lead first. Check the dataset before installing. Home Assistant also needs an IPv6 route to the Thread network, which your border router normally advertises on your LAN.
+
 ## Android notifications
 
 The [notification blueprint](home-assistant/blueprints/washer_notification.yaml) keeps one card: estimated progress and countdown while Running, static time while Paused, and **Wash finished** on Completed. Off or unknown/unavailable status clears it. Delay End shows a scheduled-finish label rather than a progress bar.
@@ -159,7 +174,7 @@ Allow Companion app notifications on the phone. Progress is estimated from the f
 
 ## Contributing
 
-Report the exact model/board, expected reading and actual panel behavior. For decoding issues, turn on the **UART raw capture** switch (configured with `uart_raw_capture`), save a short **Wi-Fi** log around one action, then turn capture off. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep firmware receive-only.
+Report the exact model/board, expected reading and actual panel behavior. For decoding issues, turn on the **UART raw capture** switch (configured with `uart_raw_capture`), save a short **network** (Wi-Fi or Thread, not USB) log around one action, then turn capture off. Review logs and photos before sharing; never include credentials, backups or compiled firmware. Keep firmware receive-only.
 
 ### Development checks
 

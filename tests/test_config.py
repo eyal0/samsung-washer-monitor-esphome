@@ -1,6 +1,7 @@
 """Run with: python -m unittest discover -s tests -p 'test_*.py' (ESPHome installed)."""
 
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -43,6 +44,9 @@ class ConfigTest(unittest.TestCase):
                 'ota_password: "test-password"\n'
                 'api_encryption_key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="\n'
             )
+            (Path(tmp) / "secrets-thread.yaml").write_text(
+                'tlv: "0e080000000000010000000300000f"\n'
+            )
             result = subprocess.run(
                 [sys.executable, "-m", "esphome", "config", str(path)],
                 capture_output=True, text=True, timeout=60,
@@ -53,12 +57,15 @@ class ConfigTest(unittest.TestCase):
                 self.assertIn(message, output)
 
     def test_valid_configs(self):
-        example = (ROOT / "firmware/washer.yaml").read_text().replace(
-            "source: github://kralonur/samsung-washer-monitor-esphome@main",
-            f"source:\n      type: local\n      path: {ROOT / 'components'}",
-        )
+        def example(name):
+            return (ROOT / "firmware" / name).read_text().replace(
+                "source: github://kralonur/samsung-washer-monitor-esphome@main",
+                f"source:\n      type: local\n      path: {ROOT / 'components'}",
+            )
+
         configs = {
-            "example": example,
+            "example": example("washer.yaml"),
+            "thread_example": example("washer-thread.yaml"),
             "minimal": BASE.replace("  secondary_uart_id: secondary\n", ""),
             "dual_uart": BASE,
             "cycle_only": BASE + "  cycle_status:\n    name: Cycle status\n",
@@ -75,6 +82,14 @@ class ConfigTest(unittest.TestCase):
         for name, config in configs.items():
             with self.subTest(name=name):
                 self.validate(config, True)
+
+    def test_examples_differ_only_in_network(self):
+        def without_network(name):
+            text = (ROOT / "firmware" / name).read_text()
+            # Drop the "# Network:" comment and the network blocks that follow it.
+            return re.sub(r"# Network:.*?\n(?=uart:|external_components:)", "", text, flags=re.S)
+
+        self.assertEqual(without_network("washer.yaml"), without_network("washer-thread.yaml"))
 
     def test_invalid_uart_settings(self):
         for index in (0, 1):
