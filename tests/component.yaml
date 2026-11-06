@@ -14,6 +14,8 @@ host:
 logger:
   level: WARN
 
+api:
+
 external_components:
   - source:
       type: local
@@ -25,8 +27,25 @@ uart:
   port: /dev/null
   baud_rate: 9600
 
+time:
+  - platform: homeassistant
+    id: test_time
+
 samsung_washer:
   uart_id: test_uart
+  time_id: test_time
+  cycle:
+    name: Cycle
+  machine_state:
+    name: Machine state
+  completion_time:
+    name: Completion time
+  delay_start:
+    name: Delay start
+  estimated_finish:
+    name: Estimated finish
+  bubble_soak:
+    name: Bubble soak
 
 # Compile the actual ESPHome filter pipelines for regression tests.
 binary_sensor:

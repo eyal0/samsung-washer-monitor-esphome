@@ -68,8 +68,8 @@ class ConfigTest(unittest.TestCase):
             "thread_example": example("washer-thread.yaml"),
             "minimal": BASE.replace("  secondary_uart_id: secondary\n", ""),
             "dual_uart": BASE,
-            "cycle_only": BASE + "  cycle_status:\n    name: Cycle status\n",
-            "filtered": BASE + "  panel_on:\n    name: Panel\n    filters:\n      - invert:\n",
+            "cycle_only": BASE + "  machine_state:\n    name: Machine state\n",
+            "filtered": BASE + "  power:\n    name: Power\n    filters:\n      - invert:\n",
             "two_washers": BASE.replace(
                 "  uart_id: primary\n  secondary_uart_id: secondary\n",
                 "  - uart_id: primary\n  - uart_id: secondary\n",

@@ -1,24 +1,41 @@
 blueprint:
   name: Samsung washer — ongoing Android notification
   description: >-
-    Shows running/paused status and the washer's displayed time in one ongoing
-    Android Companion notification using the firmware's Cycle status sensor.
-    Completed (observed CN803 pin 1 event 0E) replaces the ongoing card with a dismissible
-    Wash finished notification. Off or unknown/unavailable status clears it.
-    Displayed time may be a duration or Delay End value.
+    Shows Active/Paused state and Completion time in one ongoing Android Companion
+    notification. Finished replaces the ongoing card with a dismissible Wash finished
+    notification. Power off, or an unavailable Power entity, clears it. Delay start
+    shows a scheduled-finish label rather than a progress bar.
   domain: automation
   input:
-    status:
-      name: Cycle status
-      description: Firmware status sensor (Running, Paused, Completed, Off or Unknown).
+    machine_state:
+      name: Machine state
+      description: Active, Paused, or Idle. Unavailable when the panel state is not known.
       selector:
         entity:
           domain: sensor
-    displayed_time:
-      name: Displayed time
+    progress:
+      name: Progress
+      description: Finished, Delayed start, or Idle.
       selector:
         entity:
           domain: sensor
+    completion_time:
+      name: Completion time
+      description: Remaining time in minutes, or the delay duration while Delay End is showing.
+      selector:
+        entity:
+          domain: sensor
+    delay_start:
+      name: Delay start
+      description: Delay End duration in hours. Zero while the panel shows a countdown.
+      selector:
+        entity:
+          domain: number
+    power:
+      name: Power
+      selector:
+        entity:
+          domain: binary_sensor
     cycle_duration:
       name: Cycle duration helper
       description: Dedicated Number helper, minimum 0, maximum 172800, step 1, unit s. Retains the estimated cycle duration across pauses and HA restarts.
@@ -40,27 +57,33 @@ blueprint:
 mode: restart
 
 variables:
-  status_entity: !input status
-  time_entity: !input displayed_time
+  machine_entity: !input machine_state
+  progress_entity: !input progress
+  completion_entity: !input completion_time
+  delay_entity: !input delay_start
+  power_entity: !input power
   duration_entity: !input cycle_duration
-  notification_tag: "washer_{{ status_entity | replace('.', '_') }}"
+  notification_tag: "washer_{{ machine_entity | replace('.', '_') }}"
+  remaining_minutes: "{{ states(completion_entity) | float(-1) }}"
+  delay_hours: "{{ states(delay_entity) | float(0) }}"
   remaining_seconds: >-
-    {% set time = states(time_entity) %}
-    {% if time | regex_match('^[0-9]+:[0-5][0-9]$') %}
-      {% set parts = time.split(':') %}
-      {{ (parts[0] | int) * 3600 + (parts[1] | int) * 60 }}
-    {% else %}
-      -1
-    {% endif %}
+    {% set minutes = remaining_minutes | float(-1) %}
+    {{ (minutes * 60) | int if minutes >= 0 else -1 }}
   cycle_seconds: >-
     {{ [states(duration_entity) | int(0),
-        (remaining_seconds | int) if is_state(status_entity, 'Running') else 0] | max }}
+        (remaining_seconds | int) if is_state(machine_entity, 'Active') else 0] | max }}
 
 triggers:
   - trigger: state
-    entity_id: !input status
+    entity_id: !input machine_state
   - trigger: state
-    entity_id: !input displayed_time
+    entity_id: !input progress
+  - trigger: state
+    entity_id: !input completion_time
+  - trigger: state
+    entity_id: !input delay_start
+  - trigger: state
+    entity_id: !input power
   - trigger: homeassistant
     event: start
 
@@ -68,7 +91,7 @@ actions:
   - if:
       - condition: template
         value_template: >-
-          {{ is_state(status_entity, 'Running') and
+          {{ is_state(machine_entity, 'Active') and
              (remaining_seconds | int) > (states(duration_entity) | int(0)) }}
     then:
       - action: input_number.set_value
@@ -77,7 +100,7 @@ actions:
         data:
           value: "{{ cycle_seconds }}"
   - choose:
-      - conditions: "{{ is_state(status_entity, 'Off') }}"
+      - conditions: "{{ not is_state(power_entity, 'on') }}"
         sequence:
           - action: input_number.set_value
             target:
@@ -90,7 +113,7 @@ actions:
               data:
                 tag: "{{ notification_tag }}"
       - conditions: >-
-          {{ is_state(status_entity, 'Completed') }}
+          {{ is_state(progress_entity, 'Finished') }}
         sequence:
           - action: input_number.set_value
             target:
@@ -115,21 +138,36 @@ actions:
                 when: 0
                 progress: -1
       - conditions: >-
-          {{ states(status_entity) in ['Running', 'Paused'] and
-             ((remaining_seconds | int) >= 0 or states(time_entity) | regex_match('^[0-9]+h$')) }}
+          {{ is_state(progress_entity, 'Delayed start') }}
+        sequence:
+          - action: !input notify_action
+            data:
+              title: Samsung washer
+              message: "Scheduled finish · {{ delay_hours | int }}h on panel"
+              data:
+                tag: "{{ notification_tag }}"
+                clickAction: !input navigation_path
+                group: appliances
+                progress: -1
+                progress_max: 1
+                channel: Washer status
+                importance: low
+                persistent: true
+                sticky: true
+                alert_once: true
+                notification_icon: mdi:timer-outline
+                chronometer: false
+                when: 0
+      - conditions: >-
+          {{ states(machine_entity) in ['Active', 'Paused'] and (remaining_seconds | int) >= 0 }}
         sequence:
           - action: !input notify_action
             data:
               title: Samsung washer
               message: >-
-                {% set time = states(time_entity) %}
-                {% if time.endswith('h') %}
-                  Scheduled finish · {{ time }} on panel
-                {% elif time | regex_match('^[0-9]+:[0-5][0-9]$') %}
-                  {{ 'Washing · estimated time' if is_state(status_entity, 'Running') else 'Paused' }} · {{ time }} on panel
-                {% else %}
-                  Waiting for washer time
-                {% endif %}
+                {% set total = remaining_minutes | int %}
+                {% set shown = '%d:%02d' | format(total // 60, total % 60) %}
+                {{ 'Washing · estimated time' if is_state(machine_entity, 'Active') else 'Paused' }} · {{ shown }} on panel
               data:
                 tag: "{{ notification_tag }}"
                 clickAction: !input navigation_path
@@ -147,20 +185,14 @@ actions:
                 sticky: true
                 alert_once: true
                 notification_icon: >-
-                  {{ 'mdi:timer-outline' if states(time_entity).endswith('h') else
-                  ('mdi:washing-machine' if is_state(status_entity, 'Running') else 'mdi:pause-circle-outline') }}
+                  {{ 'mdi:washing-machine' if is_state(machine_entity, 'Active') else 'mdi:pause-circle-outline' }}
                 chronometer: >-
-                  {{ is_state(status_entity, 'Running') and
-                     states(time_entity) | regex_match('^[0-9]+:[0-5][0-9]$') and
-                     states(time_entity) != '0:00' }}
+                  {{ is_state(machine_entity, 'Active') and (remaining_seconds | int) > 0 }}
                 when: >-
-                  {% set time = states(time_entity) %}
-                  {% if is_state(status_entity, 'Running') and time | regex_match('^[0-9]+:[0-5][0-9]$') %}
-                    {% set parts = time.split(':') %}
-                    {% set seconds = (parts[0] | int) * 3600 + (parts[1] | int) * 60 %}
-                    {% set anchor = [as_timestamp(states[time_entity].last_changed),
-                                     as_timestamp(states[status_entity].last_changed)] | max %}
-                    {{ (anchor + seconds) | int }}
+                  {% if is_state(machine_entity, 'Active') and (remaining_seconds | int) > 0 %}
+                    {% set anchor = [as_timestamp(states[completion_entity].last_changed),
+                                     as_timestamp(states[machine_entity].last_changed)] | max %}
+                    {{ (anchor + (remaining_seconds | int)) | int }}
                   {% else %}
                     0
                   {% endif %}

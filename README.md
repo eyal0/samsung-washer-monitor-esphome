@@ -10,19 +10,36 @@ The [DC92-01950B parts catalog](https://www.sos-parts.com/display-card-original-
 
 ## What you get
 
-![Home Assistant device-page Sensors card showing Cotton, 40 °C, 800 rpm, two rinses and 1:05 displayed time](docs/images/home-assistant-demo.webp)
+![Earlier Home Assistant device page, from before the entity names were aligned with LocalThings](docs/images/home-assistant-demo.webp)
 
-The actual Home Assistant device-page **Sensors** card, with the entity icons configured in this project. **Demo values:** selections and indicators replayed from my washer's recorded history; cycle status is simulated, not a live reading.
+The screenshot is an earlier device page. Entity names and types now follow [LocalThings](https://github.com/mbillow/localthings) where this panel reports the same thing. **Demo values in the screenshot:** selections and indicators replayed from my washer's recorded history; cycle status is simulated, not a live reading.
 
-- Program, temperature, spin, rinse and option selections, plus Bubble Soak and Easy Iron indicators.
-- Displayed time, including Delay End.
-- **Cycle status:** `Running`, `Paused`, `Completed`, `Off`, `Unknown`.
-- Panel-on and door-lock indicators, a UART-link diagnostic, plus an optional raw-capture switch.
-- An optional Android progress/countdown and wash-finished notification through Home Assistant.
+| Panel reading | Entity | Type | Reported value |
+| --- | --- | --- | --- |
+| Program LED | Cycle | select | LocalThings' English cycle name. The panel's COLOURS key is reported as Colors. |
+| Temperature LEDs | Wash temperature | select | `20`, `30`, `40`, `60`, `90`, or `None` when none are lit |
+| Spin LEDs | Spin speed | select | `400`, `800`, `1200`, `1400`, `No spin`, or `Rinse hold` when none are lit |
+| Rinse LEDs | Rinse cycles | select | `1`–`5`, or `0` when none are lit |
+| Pre Wash, Intensive, Rinse+ | Pre-wash, Intensive, Extra rinse | switch | One of the three, or all off. Rinse+ is Extra rinse. |
+| Bubble Soak | Bubble soak | switch | |
+| Easy Iron | Easy Iron indicator | binary sensor | This panel only. LocalThings has no Easy Iron entity. |
+| Start, pause, and the end chime | Machine state | sensor | `Active`, `Paused`, or `Idle` |
+| | Running | binary sensor | On only while Machine state is Active |
+| | Progress | sensor | `Finished`, `Delayed start`, or `Idle`. This panel does not show wash, rinse, or spin stages. |
+| Countdown | Completion time | sensor, minutes | Remaining minutes. While Delay End is showing, this is that delay in minutes. |
+| Delay End | Delay start | number, hours | The panel's delay duration. LocalThings uses this name for that duration. |
+| Countdown while running | Estimated finish | sensor, timestamp | Requires a clock. The example uses Home Assistant's time. |
+| Panel lit | Power | binary sensor | |
+| Door-lock LED | Door lock indicator | binary sensor | The panel indicator, not LocalThings' Door entity, which is the door itself. |
+| UART | UART link active, UART raw capture | diagnostic | No LocalThings equivalent |
 
-These are panel readings, not measured water temperature, drum speed or wash stages. The door-lock entity reports the panel's door-lock indicator.
+LocalThings stores a few of these as translation keys (`active`, `pause`, `idle`, `finish`, `delaywash`, `none`, `rinse_hold`, `no_spin`) and lets Home Assistant display the words above. This monitor publishes those words directly.
 
-Running needs a captured Start event and blink confirmation. After a reboot or UART loss, status stays Unknown until fresh evidence arrives. Other selections can retain stale values; check UART link and device availability. Completion has natural-finish capture evidence, but cancellation, errors and other programs need more testing.
+These are panel readings, not measured water temperature, drum speed, or wash stages. Changing a select, switch, or Delay start in Home Assistant does not change the washer: the monitor is receive-only and puts the panel value back.
+
+Active needs a captured Start event and blink confirmation. After a reboot, UART loss, or the panel staying blank, Machine state is unavailable until fresh evidence arrives. Power reports the blank panel as off, and Progress reports Idle. Other selections can retain stale values; check UART link and device availability. Finished has natural-finish capture evidence, but cancellation, errors, and other programs need more testing.
+
+An optional Android progress/countdown and wash-finished notification is included for Home Assistant.
 
 ## Photos
 
@@ -141,11 +158,12 @@ The [`washer.yaml`](firmware/washer.yaml) example contains all supported entitie
 
 - `uart_id` selects the **CN803 pin 1** UART: 9600 baud, 8 data bits, no parity, 1 stop bit. This stream supplies all readings.
 - `secondary_uart_id` optionally selects the **CN803 pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
+- `time_id` optionally selects a clock for **Estimated finish**. The example uses Home Assistant's time.
 - Every entity block is optional. Standard ESPHome entity options such as `id`, `icon`, filters and automations remain available. Tracking does not depend on which entities you expose.
 - `uart_raw_capture` adds the diagnostic switch; it defaults to off after reboot. While on, it logs the raw bytes of pin 1 (and pin 2, if `secondary_uart_id` is set) as hex under the `washer.raw` log tag, including malformed data, without transmitting anything.
-- `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and resets cycle status to Unknown; a blank panel must persist for two seconds before reporting Off.
+- `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and clears Machine state, Progress, Running, Completion time, Delay start, Estimated finish, and Power. A blank panel must persist for two seconds before Power turns off.
 
-No parser header or YAML lambdas need to be copied. When updating an existing installation, remove the old `includes: washer_parser.h`, washer globals/interval, template entities and UART debug lambdas before adding the new component blocks. The example keeps the old entity names, so Home Assistant entity IDs stay the same; don't rename them if you want to keep your history and automations. The old template entities' ESPHome `id` values (such as `cycle_status` or `packet_diagnostics`) are not set by default; if your own YAML refers to them, add the `id` to the matching entity block.
+No parser header or YAML lambdas need to be copied. Entity names match LocalThings, so Home Assistant entity IDs change when you update an existing installation. Update automations and the notification blueprint after installing; history attached to the old entity IDs is not moved. LocalThings files Wash temperature, Spin speed, and Rinse cycles under configuration because they are remote settings. This monitor keeps them on the main device page, next to Cycle, because they are the panel readings.
 
 ### Thread instead of Wi-Fi
 
@@ -164,11 +182,11 @@ The device joins as a full Thread device (`FTD`), so it can also act as a router
 
 ## Android notifications
 
-The [notification blueprint](home-assistant/blueprints/washer_notification.yaml) keeps one card: estimated progress and countdown while Running, static time while Paused, and **Wash finished** on Completed. Off or unknown/unavailable status clears it. Delay End shows a scheduled-finish label rather than a progress bar.
+The [notification blueprint](home-assistant/blueprints/washer_notification.yaml) keeps one card: estimated progress and countdown while Machine state is Active, static time while Paused, and **Wash finished** when Progress is Finished. Power off, or an unavailable Power entity, clears it. Delayed start shows a scheduled-finish label rather than a progress bar.
 
 1. Copy it to `/config/blueprints/automation/samsung_washer/washer_notification.yaml`, then reload automations.
 2. Create a dedicated **Number helper**: minimum `0`, maximum `172800`, step `1`, unit `s`; leave it at zero initially.
-3. Create an automation from the blueprint. Select Cycle status, Displayed time and the helper; enter your Android `notify.mobile_app_…` action and a washer dashboard/device path.
+3. Create an automation from the blueprint. Select Machine state, Progress, Completion time, Delay start, Power, and the helper; enter your Android `notify.mobile_app_…` action and a washer dashboard/device path.
 
 Allow Companion app notifications on the phone. Progress is estimated from the first observed running time, not actual wash stages; reaching zero does not trigger completion. See the official [Android notification documentation](https://companion.home-assistant.io/docs/notifications/notifications-basic/).
 
