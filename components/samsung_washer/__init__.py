@@ -1,19 +1,27 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, switch, text_sensor, uart
+from esphome.components import binary_sensor, number, select, sensor, switch, text_sensor, time, uart
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_TIME_ID,
     CONF_UART_ID,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_RUNNING,
+    DEVICE_CLASS_TIMESTAMP,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_HOUR,
+    UNIT_MINUTE,
 )
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kralonur"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "text_sensor"]
+AUTO_LOAD = ["binary_sensor", "number", "select", "sensor", "switch", "text_sensor"]
 MULTI_CONF = True
 
 samsung_washer_ns = cg.esphome_ns.namespace("samsung_washer")
@@ -23,86 +31,147 @@ SamsungWasherComponent = samsung_washer_ns.class_(
 SamsungWasherRawCaptureSwitch = samsung_washer_ns.class_(
     "SamsungWasherRawCaptureSwitch", switch.Switch, cg.Component
 )
+PanelSelect = samsung_washer_ns.class_("PanelSelect", select.Select)
+PanelSwitch = samsung_washer_ns.class_("PanelSwitch", switch.Switch)
+PanelNumber = samsung_washer_ns.class_("PanelNumber", number.Number)
 
 CONF_SECONDARY_UART_ID = "secondary_uart_id"
 
-CONF_CYCLE_STATUS = "cycle_status"
-CONF_PROGRAM_INDICATOR = "program_indicator"
-CONF_TEMPERATURE_SELECTION = "temperature_selection"
-CONF_SPIN_SELECTION = "spin_selection"
-CONF_RINSE_SELECTION = "rinse_selection"
-CONF_DISPLAYED_TIME = "displayed_time"
-CONF_OPTION = "option"
+# Names and Home Assistant types follow LocalThings where the panel reports the same thing.
+# Option lists are the English labels LocalThings shows. Keep them in sync with samsung_washer.cpp.
+CONF_CYCLE = "cycle"
+CONF_WASH_TEMPERATURE = "wash_temperature"
+CONF_SPIN_SPEED = "spin_speed"
+CONF_RINSE_CYCLES = "rinse_cycles"
+CYCLE_OPTIONS = [
+    "15' Quick Wash",
+    "Mixed Load",
+    "Delicates",
+    "Wool",
+    "Intense Cold",
+    "Colors",
+    "Bedding",
+    "Eco 40-60",
+    "Cotton",
+    "Synthetics",
+    "Hygiene Steam",
+    "Rinse+Spin",
+    "Drain/Spin",
+    "Drum Clean",
+]
+TEMPERATURE_OPTIONS = ["None", "20", "30", "40", "60", "90", "40 and 60 indicators", "Unknown"]
+SPIN_OPTIONS = ["Rinse hold", "No spin", "400", "800", "1200", "1400", "Unknown"]
+RINSE_OPTIONS = ["0", "1", "2", "3", "4", "5", "Unknown"]
+SELECTS = (
+    (CONF_CYCLE, "set_cycle_select", "mdi:washing-machine", CYCLE_OPTIONS),
+    (CONF_WASH_TEMPERATURE, "set_wash_temperature_select", "mdi:thermometer-water", TEMPERATURE_OPTIONS),
+    (CONF_SPIN_SPEED, "set_spin_speed_select", "mdi:sync", SPIN_OPTIONS),
+    (CONF_RINSE_CYCLES, "set_rinse_cycles_select", "mdi:water-sync", RINSE_OPTIONS),
+)
 
-CONF_PANEL_ON = "panel_on"
+CONF_MACHINE_STATE = "machine_state"
+CONF_PROGRESS = "progress"
+TEXT_SENSORS = (
+    (CONF_MACHINE_STATE, "set_machine_state_text_sensor", "mdi:washing-machine"),
+    (CONF_PROGRESS, "set_progress_text_sensor", "mdi:progress-wrench"),
+)
+
+CONF_RUNNING = "running"
+CONF_POWER = "power"
 CONF_UART_LINK_ACTIVE = "uart_link_active"
-CONF_BUBBLE_SOAK_INDICATOR = "bubble_soak_indicator"
 CONF_EASY_IRON_INDICATOR = "easy_iron_indicator"
 CONF_DOOR_LOCK_INDICATOR = "door_lock_indicator"
+BINARY_SENSORS = (
+    (CONF_RUNNING, "set_running_binary_sensor", DEVICE_CLASS_RUNNING, None, None),
+    (CONF_POWER, "set_power_binary_sensor", DEVICE_CLASS_POWER, None, None),
+    (
+        CONF_UART_LINK_ACTIVE,
+        "set_link_active_binary_sensor",
+        None,
+        "mdi:lan-connect",
+        ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    (CONF_EASY_IRON_INDICATOR, "set_iron_indicator_binary_sensor", None, "mdi:iron-outline", None),
+    (
+        CONF_DOOR_LOCK_INDICATOR,
+        "set_lock_indicator_binary_sensor",
+        None,
+        "mdi:lock",
+        ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+)
+
+CONF_COMPLETION_TIME = "completion_time"
+CONF_ESTIMATED_FINISH = "estimated_finish"
+CONF_DELAY_START = "delay_start"
+
+CONF_BUBBLE_SOAK = "bubble_soak"
+CONF_PRE_WASH = "pre_wash"
+CONF_INTENSIVE = "intensive"
+CONF_EXTRA_RINSE = "extra_rinse"
+PANEL_SWITCHES = (
+    (CONF_BUBBLE_SOAK, "set_bubble_soak_switch", "mdi:chart-bubble"),
+    (CONF_PRE_WASH, "set_pre_wash_switch", "mdi:washing-machine"),
+    (CONF_INTENSIVE, "set_intensive_switch", "mdi:washing-machine"),
+    (CONF_EXTRA_RINSE, "set_extra_rinse_switch", "mdi:water-plus"),
+)
 
 CONF_UART_RAW_CAPTURE = "uart_raw_capture"
 
-TEXT_SENSORS = (
-    (CONF_CYCLE_STATUS, "set_cycle_status_text_sensor"),
-    (CONF_PROGRAM_INDICATOR, "set_program_indicator_text_sensor"),
-    (CONF_TEMPERATURE_SELECTION, "set_temperature_selection_text_sensor"),
-    (CONF_SPIN_SELECTION, "set_spin_selection_text_sensor"),
-    (CONF_RINSE_SELECTION, "set_rinse_selection_text_sensor"),
-    (CONF_DISPLAYED_TIME, "set_displayed_time_text_sensor"),
-    (CONF_OPTION, "set_option_selection_text_sensor"),
-)
 
-BINARY_SENSORS = (
-    (CONF_PANEL_ON, "set_panel_on_binary_sensor"),
-    (CONF_UART_LINK_ACTIVE, "set_link_active_binary_sensor"),
-    (CONF_BUBBLE_SOAK_INDICATOR, "set_bubble_indicator_binary_sensor"),
-    (CONF_EASY_IRON_INDICATOR, "set_iron_indicator_binary_sensor"),
-    (CONF_DOOR_LOCK_INDICATOR, "set_lock_indicator_binary_sensor"),
-)
+def _binary_schema(device_class, icon, entity_category):
+    kwargs = {}
+    if device_class is not None:
+        kwargs["device_class"] = device_class
+    if icon is not None:
+        kwargs["icon"] = icon
+    if entity_category is not None:
+        kwargs["entity_category"] = entity_category
+    return binary_sensor.binary_sensor_schema(**kwargs)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SamsungWasherComponent),
             cv.Optional(CONF_SECONDARY_UART_ID): cv.use_id(uart.UARTComponent),
-            cv.Optional(CONF_CYCLE_STATUS): text_sensor.text_sensor_schema(
-                icon="mdi:washing-machine"
+            cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+            **{
+                cv.Optional(key): select.select_schema(PanelSelect, icon=icon)
+                for key, _setter, icon, _options in SELECTS
+            },
+            **{
+                cv.Optional(key): text_sensor.text_sensor_schema(icon=icon)
+                for key, _setter, icon in TEXT_SENSORS
+            },
+            **{
+                cv.Optional(key): _binary_schema(device_class, icon, entity_category)
+                for key, _setter, device_class, icon, entity_category in BINARY_SENSORS
+            },
+            cv.Optional(CONF_COMPLETION_TIME): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MINUTE,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_DURATION,
+                state_class=STATE_CLASS_MEASUREMENT,
+                icon="mdi:clock-outline",
             ),
-            cv.Optional(CONF_PROGRAM_INDICATOR): text_sensor.text_sensor_schema(
-                icon="mdi:washing-machine"
+            cv.Optional(CONF_ESTIMATED_FINISH): sensor.sensor_schema(
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_TIMESTAMP,
+                icon="mdi:clock-end",
             ),
-            cv.Optional(CONF_TEMPERATURE_SELECTION): text_sensor.text_sensor_schema(
-                icon="mdi:thermometer"
+            cv.Optional(CONF_DELAY_START): number.number_schema(
+                PanelNumber,
+                unit_of_measurement=UNIT_HOUR,
+                device_class=DEVICE_CLASS_DURATION,
+                icon="mdi:timer-plus-outline",
             ),
-            cv.Optional(CONF_SPIN_SELECTION): text_sensor.text_sensor_schema(
-                icon="mdi:rotate-right"
-            ),
-            cv.Optional(CONF_RINSE_SELECTION): text_sensor.text_sensor_schema(
-                icon="mdi:water"
-            ),
-            cv.Optional(CONF_DISPLAYED_TIME): text_sensor.text_sensor_schema(
-                icon="mdi:timer-outline"
-            ),
-            cv.Optional(CONF_OPTION): text_sensor.text_sensor_schema(
-                icon="mdi:tune-variant"
-            ),
-            cv.Optional(CONF_PANEL_ON): binary_sensor.binary_sensor_schema(
-                icon="mdi:power"
-            ),
-            cv.Optional(CONF_UART_LINK_ACTIVE): binary_sensor.binary_sensor_schema(
-                icon="mdi:lan-connect",
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
-            cv.Optional(CONF_BUBBLE_SOAK_INDICATOR): binary_sensor.binary_sensor_schema(
-                icon="mdi:chart-bubble"
-            ),
-            cv.Optional(CONF_EASY_IRON_INDICATOR): binary_sensor.binary_sensor_schema(
-                icon="mdi:iron-outline"
-            ),
-            cv.Optional(CONF_DOOR_LOCK_INDICATOR): binary_sensor.binary_sensor_schema(
-                icon="mdi:lock",
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            ),
+            **{
+                cv.Optional(key): switch.switch_schema(
+                    PanelSwitch, icon=icon, default_restore_mode="DISABLED"
+                )
+                for key, _setter, icon in PANEL_SWITCHES
+            },
             cv.Optional(CONF_UART_RAW_CAPTURE): switch.switch_schema(
                 SamsungWasherRawCaptureSwitch,
                 icon="mdi:code-braces",
@@ -171,15 +240,36 @@ async def to_code(config: ConfigType) -> None:
         secondary_uart = await cg.get_variable(secondary_uart_id)
         cg.add(var.set_secondary_uart(secondary_uart))
 
-    for key, setter in TEXT_SENSORS:
-        if conf := config.get(key):
-            sens = await text_sensor.new_text_sensor(conf)
-            cg.add(getattr(var, setter)(sens))
+    if time_id := config.get(CONF_TIME_ID):
+        cg.add_define("USE_SAMSUNG_WASHER_TIME")
+        cg.add(var.set_time(await cg.get_variable(time_id)))
 
-    for key, setter in BINARY_SENSORS:
+    for key, setter, _icon, options in SELECTS:
         if conf := config.get(key):
-            sens = await binary_sensor.new_binary_sensor(conf)
-            cg.add(getattr(var, setter)(sens))
+            cg.add(getattr(var, setter)(await select.new_select(conf, options=options)))
+
+    for key, setter, _icon in TEXT_SENSORS:
+        if conf := config.get(key):
+            cg.add(getattr(var, setter)(await text_sensor.new_text_sensor(conf)))
+
+    for key, setter, _device_class, _icon, _category in BINARY_SENSORS:
+        if conf := config.get(key):
+            cg.add(getattr(var, setter)(await binary_sensor.new_binary_sensor(conf)))
+
+    if conf := config.get(CONF_COMPLETION_TIME):
+        cg.add(var.set_completion_time_sensor(await sensor.new_sensor(conf)))
+    if conf := config.get(CONF_ESTIMATED_FINISH):
+        cg.add(var.set_estimated_finish_sensor(await sensor.new_sensor(conf)))
+    if conf := config.get(CONF_DELAY_START):
+        cg.add(
+            var.set_delay_start_number(
+                await number.new_number(conf, min_value=0, max_value=24, step=1)
+            )
+        )
+
+    for key, setter, _icon in PANEL_SWITCHES:
+        if conf := config.get(key):
+            cg.add(getattr(var, setter)(await switch.new_switch(conf)))
 
     if conf := config.get(CONF_UART_RAW_CAPTURE):
         sw = await switch.new_switch(conf)

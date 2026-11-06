@@ -28,6 +28,10 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
 external_components:
   - source: github://kralonur/samsung-washer-monitor-esphome@main
     components: [samsung_washer]
@@ -43,29 +47,42 @@ uart:
 samsung_washer:
   uart_id: cn803_pin1_uart
   secondary_uart_id: cn803_pin2_uart
-  cycle_status:
-    name: Cycle status
-  program_indicator:
-    name: Program indicator
-  temperature_selection:
-    name: Temperature selection
-  spin_selection:
-    name: Spin selection
-  rinse_selection:
-    name: Rinse selection
-  displayed_time:
-    name: Displayed time
-  option:
-    name: Option
-  panel_on:
-    name: Panel on
-  uart_link_active:
-    name: UART link active
-  bubble_soak_indicator:
-    name: Bubble Soak indicator
+  time_id: homeassistant_time
+  cycle:
+    name: Cycle
+  wash_temperature:
+    name: Wash temperature
+  spin_speed:
+    name: Spin speed
+  rinse_cycles:
+    name: Rinse cycles
+  bubble_soak:
+    name: Bubble soak
+  pre_wash:
+    name: Pre-wash
+  intensive:
+    name: Intensive
+  extra_rinse:
+    name: Extra rinse
   easy_iron_indicator:
     name: Easy Iron indicator
+  machine_state:
+    name: Machine state
+  progress:
+    name: Progress
+  running:
+    name: Running
+  completion_time:
+    name: Completion time
+  delay_start:
+    name: Delay start
+  estimated_finish:
+    name: Estimated finish
+  power:
+    name: Power
   door_lock_indicator:
     name: Door lock indicator
+  uart_link_active:
+    name: UART link active
   uart_raw_capture:
     name: UART raw capture
