@@ -38,6 +38,10 @@ void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<u
     return;
   if (!force && (millis() - last_byte_ms) < 50)
     return;
+  if (buf.size() < 2 || buf[0] != 0x5a || buf[1] != 0xa5) {
+    buf.clear();
+    return;
+  }
   if (buf.size() > 33)
     buf.resize(33);
   if (buf != last_row) {
