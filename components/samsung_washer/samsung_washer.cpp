@@ -38,8 +38,10 @@ void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<u
     return;
   if (!force && (millis() - last_byte_ms) < 50)
     return;
+  if (buf.size() > 33)
+    buf.resize(33);
   if (buf != last_row) {
-    char hex[format_hex_size(64)];
+    char hex[format_hex_size(33)];
     ESP_LOGI(RAW_TAG, "%s %" PRIu32 " %s", label, millis(), format_hex_pretty_to(hex, buf.data(), buf.size(), '\0'));
   }
   last_row.swap(buf);
