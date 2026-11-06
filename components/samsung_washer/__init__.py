@@ -107,7 +107,7 @@ CONFIG_SCHEMA = (
                 SamsungWasherRawCaptureSwitch,
                 icon="mdi:code-braces",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                default_restore_mode="ALWAYS_OFF",
+                default_restore_mode="ALWAYS_ON",
             ).extend(cv.COMPONENT_SCHEMA),
         }
     )
