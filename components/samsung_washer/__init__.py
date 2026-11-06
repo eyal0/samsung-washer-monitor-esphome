@@ -118,21 +118,13 @@ CONFIG_SCHEMA = (
 _PRIMARY_UART_VALIDATE = uart.final_validate_device_schema(
     "samsung_washer",
     uart_bus=CONF_UART_ID,
-    baud_rate=9600,
     require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
 )
 
 _SECONDARY_UART_VALIDATE = uart.final_validate_device_schema(
     "samsung_washer",
     uart_bus=CONF_SECONDARY_UART_ID,
-    baud_rate=9600,
     require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
 )
 
 

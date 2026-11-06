@@ -91,20 +91,29 @@ class ConfigTest(unittest.TestCase):
 
         self.assertEqual(without_network("washer.yaml"), without_network("washer-thread.yaml"))
 
-    def test_invalid_uart_settings(self):
+    def test_uart_format_is_not_restricted(self):
         for index in (0, 1):
-            for setting, replacement, message in (
-                ("baud_rate: 9600", "baud_rate: 115200", "requires baud rate 9600"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    parity: EVEN", "requires parity NONE"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    data_bits: 7", "requires 8 data bits"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    stop_bits: 2", "requires 1 stop bits"),
-                (f"rx_pin: GPIO{index + 1}", f"tx_pin: GPIO{index + 1}", "declare a rx_pin"),
+            for setting, replacement in (
+                ("baud_rate: 9600", "baud_rate: 115200"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    parity: EVEN"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    data_bits: 7"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    stop_bits: 2"),
             ):
                 with self.subTest(uart=index, replacement=replacement):
                     marker = f"  - id: {'primary' if index == 0 else 'secondary'}"
                     before, bus = BASE.split(marker, 1)
                     config = before + marker + bus.replace(setting, replacement, 1)
-                    self.validate(config, False, message)
+                    self.validate(config, True)
+
+    def test_uart_requires_rx_pin(self):
+        for index in (0, 1):
+            with self.subTest(uart=index):
+                marker = f"  - id: {'primary' if index == 0 else 'secondary'}"
+                before, bus = BASE.split(marker, 1)
+                config = before + marker + bus.replace(
+                    f"rx_pin: GPIO{index + 1}", f"tx_pin: GPIO{index + 1}", 1
+                )
+                self.validate(config, False, "declare a rx_pin")
 
     def test_uart_ownership(self):
         self.validate(BASE.replace("secondary_uart_id: secondary", "secondary_uart_id: primary"), False, "used both")
