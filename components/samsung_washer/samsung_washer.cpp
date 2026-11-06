@@ -36,10 +36,24 @@ void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<u
                                                 bool force) {
   if (buf.empty())
     return;
-  if (!force && buf.size() < 32 && (millis() - last_byte_ms) < 50)
+  if (!force && (millis() - last_byte_ms) < 50)
     return;
   ESP_LOGI(RAW_TAG, "%s %" PRIu32 " %s", label, millis(), format_hex_pretty(buf.data(), buf.size()).c_str());
   buf.clear();
+}
+
+void SamsungWasherComponent::capture_raw_byte_(const char *label, std::vector<uint8_t> &buf, uint32_t &last_byte_ms,
+                                               uint8_t byte) {
+  // A 5A A5 header starts a new row; the cap bounds rows when no header arrives.
+  if (byte == 0xa5 && buf.size() > 1 && buf.back() == 0x5a) {
+    buf.pop_back();
+    this->flush_raw_capture_(label, buf, last_byte_ms, true);
+    buf.push_back(0x5a);
+  } else if (buf.size() >= 64) {
+    this->flush_raw_capture_(label, buf, last_byte_ms, true);
+  }
+  buf.push_back(byte);
+  last_byte_ms = millis();
 }
 
 void SamsungWasherComponent::loop() {
@@ -52,26 +66,16 @@ void SamsungWasherComponent::loop() {
   uint8_t byte = 0;
   int budget = 64;
   while (budget-- > 0 && this->available() && this->read_byte(&byte)) {
-    if (raw_capture) {
-      this->primary_raw_buf_.push_back(byte);
-      this->primary_raw_last_ms_ = millis();
-      if (this->primary_raw_buf_.size() >= 32) {
-        this->flush_raw_capture_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_ms_, true);
-      }
-    }
+    if (raw_capture)
+      this->capture_raw_byte_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_ms_, byte);
     this->primary_parser_.feed(byte, [this](const std::vector<uint8_t> &p) { this->handle_primary_frame_(p); });
   }
 
   if (this->secondary_uart_ != nullptr) {
     int sec_budget = 64;
     while (sec_budget-- > 0 && this->secondary_uart_->available() && this->secondary_uart_->read_byte(&byte)) {
-      if (raw_capture) {
-        this->secondary_raw_buf_.push_back(byte);
-        this->secondary_raw_last_ms_ = millis();
-        if (this->secondary_raw_buf_.size() >= 32) {
-          this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_ms_, true);
-        }
-      }
+      if (raw_capture)
+        this->capture_raw_byte_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_ms_, byte);
       this->secondary_parser_.feed(byte, [](const std::vector<uint8_t> &) {});
     }
   }
