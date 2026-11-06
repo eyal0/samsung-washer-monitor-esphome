@@ -72,7 +72,7 @@ These power/ground assignments come from my continuity and operating-voltage che
 I just used Scotch tape to stick the ESP into an empty space. Budget engineering at its finest. Poor installation? Absolutely :D I power it from the **5 V supply on the panel's programming port (CN201)**.
 
 > [!WARNING]
-> **Not recommended:** the resistor voltage dividers in the photo above and the diagram below are just my prototype hack. Use a proper **5 V→3.3 V UART level shifter** instead.
+> **Not recommended:** the resistor voltage dividers in the photo above and the diagram below are just my prototype hack. Use a proper **5 V→3.3 V UART level shifter** instead ([wiring](#level-shifter-wiring)).
 
 The resistors in the wiring photo are **voltage dividers for the washer's 5 V UART signals**, using **10 kΩ and 20 kΩ**. My multimeter's resistance range was broken, so I stuck with 10 kΩ resistors: each 20 kΩ leg is simply two 10 kΩ resistors in series. That's why there are so many resistors in the photo!
 
@@ -89,13 +89,43 @@ Samsung ground ────────┴── ESP GND
 Repeat for **CN803 pin 1 → GPIO1** and **CN803 pin 2 → GPIO2**; do not join the two signal lines. Ground is **CN803 pin 5 / CN201 pin 2**. At nominal 5 V, this divider produces about **3.33 V**; verify actual signal levels and resistor tolerances against your ESP's input limits before use.
 
 > [!IMPORTANT]
-> **If you build this yourself, prefer a proper 5 V→3.3 V UART level shifter rather than copying the resistor dividers.** I used dividers because I already had 10 kΩ resistors on hand and only needed 9600 baud receive. A passive divider has real limitations:
+> **If you build this yourself, prefer a proper 5 V→3.3 V UART level shifter rather than copying the resistor dividers.** Wiring for one is in [Level shifter wiring](#level-shifter-wiring). I used dividers because I already had 10 kΩ resistors on hand and only needed 9600 baud receive. A passive divider has real limitations:
 > - **Tight voltage margin:** 10 kΩ / 20 kΩ turns 5.00 V into ~3.33 V, leaving little headroom if the washer's 5 V rail runs high or resistor tolerances shift the ratio.
 > - **Power-off / back-powering behavior:** if the washer drives UART high while the ESP is unpowered, current can flow into the ESP input protection network.
 > - **Higher source impedance:** resistor dividers and wiring capacitance slow signal edges and reduce noise margin compared with a level shifter.
 > - **Receive-only (`5 V → 3.3 V`):** a passive divider only steps voltage down; it cannot step a 3.3 V ESP TX output up to 5 V.
 
 This is my prototype, not a recommended permanent mounting method or a qualified wiring guide.
+
+### Level shifter wiring
+
+CN803 pins 1 and 2 are a **5 V TTL UART** (9600 baud, 8N1). ESP32 GPIO is **3.3 V** and is not 5 V tolerant. The proper way to connect them is a **bidirectional logic level shifter** on each UART line, with the washer signals on the shifter's 5 V side.
+
+The panel also supplies 5 V on CN803 pin 4, the same rail as CN201 pin 1. The ESP `5V` pin takes that rail, which is how the board is powered once it is installed. USB flashing still requires every washer lead to be disconnected first; see [Safety](#safety).
+
+#### Circuit diagram
+
+The diagram below shows a Seeed Studio XIAO ESP32-C6 with a 4-channel bidirectional level shifter. The same wiring applies to other ESP boards: use that board's `5V`, `GND` and `3V3` pins and two UART RX pins, and match the RX pins in your ESPHome YAML.
+
+![Panel 5 V and CN803 UART through a 4-channel level shifter into a XIAO ESP32-C6. The ESP 5V pin is powered from the panel 5 V rail.](docs/images/samsung_washer_to_level_shifter_to_esp32.webp)
+
+#### Wiring
+
+| Washer (5 V side) | Level shifter | XIAO ESP32-C6 (3.3 V side) | Notes |
+| --- | --- | --- | --- |
+| 5 V, CN803 pin 4 or CN201 pin 1 | HV | 5V | Red. Powers the shifter HV rail and the ESP |
+| Ground, CN803 pin 5 or CN201 pin 2 | GND (HV and LV) | GND | Black. Common ground |
+| — | LV | 3V3 | Light blue. 3.3 V reference for the shifter LV rail |
+| CN803 pin 1 | HV4 ↔ LV4 | D1 (GPIO1) | Yellow. Washer UART shifted down to 3.3 V |
+| CN803 pin 2 | HV3 ↔ LV3 | D2 (GPIO2) | Green. Washer UART shifted down to 3.3 V |
+
+`HV1`/`LV1` and `HV2`/`LV2` are unused and can be left open. Leave the other CN803 pins unconnected.
+
+**HV** is the high-voltage supply and the reference for a logic high on the washer side. **LV** connects to the ESP `3V3` pin, which sets the logic high on the ESP side. The ESP itself is powered from its `5V` pin. Both **GND** pins share the washer ground, so the two sides have a common return.
+
+Each numbered pair is one channel: `HV3` with `LV3`, and `HV4` with `LV4`. A high on the HV pin of a channel comes out as a 3.3 V high on its LV pin, and a low comes out as a low. The channel is bidirectional, so a signal driven into the LV pin is shifted up to 5 V on the HV pin. This firmware only receives, so both channels run from the washer into ESP RX pins.
+
+CN803 pin 1 is the UART the component decodes. CN803 pin 2 is the optional raw-diagnostic UART. The diagram uses the same pins as the [example configuration](firmware/washer.yaml): pin 1 on **GPIO1** and pin 2 on **GPIO2**. On this XIAO those are **D1** and **D2**. On another board, set `cn803_pin1_rx_pin` and `cn803_pin2_rx_pin` to the GPIOs you actually wired.
 
 ## Hardware tested
 
@@ -131,7 +161,7 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
    | Pin 1 | GPIO1 |
    | Pin 2 | GPIO2 |
 
-   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
+   Both inputs use **9600 baud, 8N1**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers; see [Level shifter wiring](#level-shifter-wiring). These GPIO numbers match the diagram and [`washer.yaml`](firmware/washer.yaml).
 4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use network OTA (Wi-Fi or Thread).
 5. In Home Assistant, add the **ESPHome** integration with the monitor's address and encryption key. Compare readings with the panel before building automations.
 
