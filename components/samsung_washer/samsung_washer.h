@@ -49,8 +49,10 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
  protected:
   void reset_tracking_();
   void handle_primary_frame_(const std::vector<uint8_t> &p);
-  void flush_raw_capture_(const char *label, std::vector<uint8_t> &buf, uint32_t last_byte_ms, bool force);
-  void capture_raw_byte_(const char *label, std::vector<uint8_t> &buf, uint32_t &last_byte_ms, uint8_t byte);
+  void flush_raw_capture_(const char *label, std::vector<uint8_t> &buf, std::vector<uint8_t> &last_row,
+                          uint32_t last_byte_ms, bool force);
+  void capture_raw_byte_(const char *label, std::vector<uint8_t> &buf, std::vector<uint8_t> &last_row,
+                         uint32_t &last_byte_ms, uint8_t byte);
 
   uart::UARTComponent *secondary_uart_{nullptr};
   switch_::Switch *raw_capture_switch_{nullptr};
@@ -68,6 +70,8 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
 
   std::vector<uint8_t> primary_raw_buf_{};
   std::vector<uint8_t> secondary_raw_buf_{};
+  std::vector<uint8_t> primary_raw_last_row_{};
+  std::vector<uint8_t> secondary_raw_last_row_{};
   uint32_t primary_raw_last_ms_{0};
   uint32_t secondary_raw_last_ms_{0};
 };
