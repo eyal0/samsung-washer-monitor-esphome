@@ -1,7 +1,7 @@
 # Samsung WF45R6100AP/US with the DC92-02395A control board.
 # For the DC92-01950B board (WW11BGA046), use washer.yaml instead.
-# Pin 1 frames are 33 bytes. Temperature, rinse, spin and soil are decoded.
-# Cycle status, program, displayed time and the lamp indicators are not.
+# Pin 1 frames are 33 bytes. Temperature, rinse, spin, soil and displayed time are decoded.
+# Cycle status, program and the lamp indicators are not.
 substitutions:
   cn803_pin2_rx_pin: GPIO2
   cn803_pin1_rx_pin: GPIO1
@@ -56,6 +56,8 @@ samsung_washer:
     name: Rinse selection
   soil_selection:
     name: Soil selection
+  displayed_time:
+    name: Displayed time
   uart_link_active:
     name: UART link active
   uart_raw_capture:

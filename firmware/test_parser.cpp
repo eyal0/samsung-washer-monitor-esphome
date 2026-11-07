@@ -159,6 +159,20 @@ int main(int argc, char **argv) {
   assert(std::string(washer_dc92_02395a_temperature_text(1)) == "Cold");
   assert(std::string(washer_dc92_02395a_temperature_text(3)) == "3");
   assert(std::string(washer_dc92_02395a_temperature_text(5)) == "Hot");
+  const uint8_t dc92_digits[] = {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x27, 0x7f, 0x6f};
+  for (int digit = 0; digit < 10; ++digit)
+    assert(washer_dc92_02395a_digit(dc92_digits[digit]) == digit);
+  assert(washer_dc92_02395a_digit(0x86) == 1); // Bit 7 is not a segment.
+  assert(washer_dc92_02395a_digit(0xa7) == 7);
+  assert(washer_dc92_02395a_digit(0) == -1);
+  assert(washer_dc92_02395a_time_minutes(0, 0xe6, 0x86) == 41);
+  assert(washer_dc92_02395a_time_minutes(0, 0x66, 0x86) == 41); // Same digit with bit 7 clear.
+  assert(washer_dc92_02395a_time_minutes(0, 0xcf, 0xa7) == 37);
+  assert(washer_dc92_02395a_time_minutes(0, 0, 0x06) == 1); // Blank minute tens.
+  assert(washer_dc92_02395a_time_minutes(0x06, 0xe6, 0xbf) == 100); // 1:40
+  assert(washer_dc92_02395a_time_minutes(0x5b, 0x86, 0xcf) == 133); // 2:13
+  assert(washer_dc92_02395a_time_minutes(0, 0x66, 0) == -1); // Blank ones digit.
+  assert(washer_dc92_02395a_time_minutes(0, 0x7d, 0x3f) == -1); // Minute tens above 5.
   struct Dc92Sample {
     const char *hex;
     int temperature;

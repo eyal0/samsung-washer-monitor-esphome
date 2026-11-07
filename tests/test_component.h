@@ -219,7 +219,7 @@ inline void run() {
   // DC92-02395A frames are 33 bytes and must not update the original decoder.
   TestUART wf_uart;
   SamsungWasherComponent wf;
-  text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil;
+  text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
   binary_sensor::BinarySensor wf_link, wf_panel;
   auto wf_hex = [](const char *hex) {
     std::vector<uint8_t> bytes;
@@ -240,6 +240,7 @@ inline void run() {
   wf.set_spin_selection_text_sensor(&wf_spin);
   wf.set_rinse_selection_text_sensor(&wf_rinse);
   wf.set_soil_selection_text_sensor(&wf_soil);
+  wf.set_displayed_time_text_sensor(&wf_display);
   wf.set_link_active_binary_sensor(&wf_link);
   wf.set_panel_on_binary_sensor(&wf_panel);
   feed(wf, wf_uart, temperature_1);
@@ -247,12 +248,13 @@ inline void run() {
   wf.set_model(WasherModel::DC92_02395A);
   feed(wf, wf_uart, temperature_1);
   assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
-  assert(wf_spin.state == "4" && wf_soil.state == "3");
+  assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
   assert(wf_status.state == "Unknown" && !wf_program.has_state() && !wf_panel.has_state());
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
   feed(wf, wf_uart, soil_5);
   assert(wf_spin.state == "5" && wf_soil.state == "5" && wf_rinse.state == "1");
+  assert(wf_display.state == "1:39");
   feed(wf, wf_uart, frame(true)); // Original 32-byte Cotton frame is the wrong length.
   assert(wf_temperature.state == "3" && wf_program.has_state() == false);
   wf.update();
@@ -267,7 +269,13 @@ inline void run() {
   feed(wf, wf_uart, other_cycle_cold);
   assert(wf_temperature.state == "Cold" && wf_spin.state == "5" && wf_soil.state == "5");
   feed(wf, wf_uart, other_cycle_2);
-  assert(wf_temperature.state == "2");
+  assert(wf_temperature.state == "2" && wf_display.state == "1:59");
+  const auto minutes_41 = wf_hex("5AA5C018001E005C0000000001E6808600830000000000FF000000000023007433");
+  const auto minutes_37 = wf_hex("5AA5C018001E001C00000000014F00A700820000000000FF000000000023001399");
+  feed(wf, wf_uart, minutes_41);
+  assert(wf_display.state == "0:41");
+  feed(wf, wf_uart, minutes_37);
+  assert(wf_display.state == "0:37");
 
   std::puts("PASS: component runtime tests");
   std::exit(0);

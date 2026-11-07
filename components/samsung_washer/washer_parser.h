@@ -162,6 +162,34 @@ inline const char *washer_dc92_02395a_temperature_text(int level) {
   }
 }
 
+// DC92-02395A seven-segment digit. Bits 0 through 6 are segments a through g.
+// Bit 7 is not a segment. The 7 glyph includes segment f.
+inline int washer_dc92_02395a_digit(uint8_t value) {
+  switch (value & 0x7f) {
+    case 0x3f: return 0;
+    case 0x06: return 1;
+    case 0x5b: return 2;
+    case 0x4f: return 3;
+    case 0x66: return 4;
+    case 0x6d: return 5;
+    case 0x7d: return 6;
+    case 0x27: return 7;
+    case 0x7f: return 8;
+    case 0x6f: return 9;
+    default: return -1;
+  }
+}
+
+// Byte 11 is the hour, byte 13 the minute tens, and byte 15 the minute ones.
+// A blank hour or minute-tens digit is zero. A blank ones digit is not a time.
+inline int washer_dc92_02395a_time_minutes(uint8_t hour_glyph, uint8_t tens_glyph, uint8_t ones_glyph) {
+  int hour = (hour_glyph & 0x7f) == 0 ? 0 : washer_dc92_02395a_digit(hour_glyph);
+  int tens = (tens_glyph & 0x7f) == 0 ? 0 : washer_dc92_02395a_digit(tens_glyph);
+  int ones = washer_dc92_02395a_digit(ones_glyph);
+  if (hour < 0 || tens < 0 || tens > 5 || ones < 0) return -1;
+  return hour * 60 + tens * 10 + ones;
+}
+
 inline int washer_delay_hours(uint8_t tens_glyph, uint8_t ones_glyph, uint8_t suffix_glyph) {
   if ((suffix_glyph & 0x7f) != 0x1e) return -1;
   int tens = (tens_glyph & 0x7f) == 0 ? 0 : washer_digit(tens_glyph);

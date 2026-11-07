@@ -259,7 +259,7 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
 }
 
 void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
-  // Cycle, program, time and the indicator lamps are not decoded on this board.
+  // Cycle, program, and the indicator lamps are not decoded on this board.
   publish_text(this->cycle_status_text_sensor_, "Unknown");
   const int temperature = washer_dc92_02395a_temperature(p[4], p[6], p[8], p[10], p[12]);
   publish_text(this->temperature_selection_text_sensor_, washer_dc92_02395a_temperature_text(temperature));
@@ -267,6 +267,14 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
                washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[3])));
   publish_text(this->spin_selection_text_sensor_, washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[5])));
   publish_text(this->soil_selection_text_sensor_, washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[7])));
+
+  const int minutes = washer_dc92_02395a_time_minutes(p[11], p[13], p[15]);
+  char display[32];
+  if (minutes >= 0)
+    snprintf(display, sizeof(display), "%d:%02d", minutes / 60, minutes % 60);
+  else
+    snprintf(display, sizeof(display), "Unknown / non-time display");
+  publish_text(this->displayed_time_text_sensor_, display);
 }
 
 void SamsungWasherComponent::dump_config() {
