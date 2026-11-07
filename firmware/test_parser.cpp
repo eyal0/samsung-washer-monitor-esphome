@@ -6,7 +6,7 @@
 
 int main(int argc, char **argv) {
   assert(argc == 4);
-  for (size_t length : {30, 32}) {
+  for (size_t length : {30, 32, 33}) {
     std::vector<uint8_t> frame(length, 0);
     frame[0] = 0x5a;
     frame[1] = 0xa5;
@@ -133,5 +133,20 @@ int main(int argc, char **argv) {
   assert(washer_delay_hours(0xeb, 0xbc, 0x1e) == 24);
   assert(washer_delay_hours(0xeb, 0xdd, 0x1e) == -1);
   assert(washer_delay_hours(0x80, 0xeb, 0x77) == -1);
+  const uint8_t bars[] = {0x00, 0x10, 0x18, 0x1c, 0x1e, 0x1f};
+  for (int level = 0; level <= 5; ++level) assert(washer_bar_level(bars[level]) == level);
+  assert(washer_bar_level(0x5c) == 3); // Soil shares its byte with another indicator.
+  assert(washer_bar_level(0x08) == -1);
+  assert(washer_bar_level(0x1d) == -1);
+  std::vector<uint8_t> temperature(33, 0);
+  assert(washer_temperature_level(temperature) == 1);
+  temperature[10] = 1;
+  assert(washer_temperature_level(temperature) == 2);
+  temperature[6] = 1;
+  assert(washer_temperature_level(temperature) == -1); // Bar segments cannot skip one.
+  temperature[8] = 1;
+  assert(washer_temperature_level(temperature) == 4);
+  temperature[4] = 2;
+  assert(washer_temperature_level(temperature) == -1);
   std::cout << found << " frames validated\n";
 }

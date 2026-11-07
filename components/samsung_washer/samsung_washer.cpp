@@ -128,6 +128,10 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
     this->reset_tracking_();
   this->last_primary_ms_ = now;
   this->has_primary_frame_ = true;
+  if (this->model_ == WASHER_MODEL_DC92_02395A) {
+    this->handle_dc92_02395a_frame_(p);
+    return;
+  }
   this->cycle_tracker_.feed(p[23], p[18] != 0 || p[20] != 0);
 
   bool panel_lit = false;
@@ -245,8 +249,24 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
   publish_text(this->displayed_time_text_sensor_, display);
 }
 
+void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
+  static const char *const TEMPERATURES[] = {"Cold", "Level 2", "Level 3", "Level 4", "Hot"};
+  static const char *const LEVELS[] = {"Level 0", "Level 1", "Level 2", "Level 3", "Level 4", "Level 5"};
+  static const char *const RINSES[] = {"0", "1", "2", "3", "4", "5"};
+
+  const int temperature = washer_temperature_level(p);
+  publish_text(this->temperature_selection_text_sensor_, temperature < 0 ? "Unknown" : TEMPERATURES[temperature - 1]);
+  const int rinse = washer_bar_level(p[3]);
+  publish_text(this->rinse_selection_text_sensor_, rinse < 0 ? "Unknown" : RINSES[rinse]);
+  const int spin = washer_bar_level(p[5]);
+  publish_text(this->spin_selection_text_sensor_, spin < 0 ? "Unknown" : LEVELS[spin]);
+  const int soil = washer_bar_level(p[7]);
+  publish_text(this->soil_selection_text_sensor_, soil < 0 ? "Unknown" : LEVELS[soil]);
+}
+
 void SamsungWasherComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Samsung Washer Monitor:");
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_ == WASHER_MODEL_DC92_02395A ? "DC92-02395A" : "DC92-01950B");
   LOG_TEXT_SENSOR("  ", "Cycle Status", this->cycle_status_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Program Indicator", this->program_indicator_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Temperature Selection", this->temperature_selection_text_sensor_);
@@ -254,6 +274,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_TEXT_SENSOR("  ", "Rinse Selection", this->rinse_selection_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Displayed Time", this->displayed_time_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Option", this->option_selection_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Soil Selection", this->soil_selection_text_sensor_);
   LOG_BINARY_SENSOR("  ", "Panel On", this->panel_on_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "UART Link Active", this->link_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Bubble Soak Indicator", this->bubble_indicator_binary_sensor_);

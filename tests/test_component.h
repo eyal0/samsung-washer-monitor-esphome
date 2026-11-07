@@ -195,6 +195,41 @@ inline void run() {
   feed(bare, bare_uart, frame(true)); // All entities are optional.
   bare.update();
 
+  // DC92-02395A frames captured from a WF45R6100AP/US.
+  auto captured = [](const char *hex) {
+    std::vector<uint8_t> p;
+    for (; *hex != '\0'; hex += 2) p.push_back(std::stoi(std::string(hex, 2), nullptr, 16));
+    return p;
+  };
+  TestUART us_uart;
+  SamsungWasherComponent us;
+  text_sensor::TextSensor us_temperature, us_rinse, us_spin, us_soil;
+  binary_sensor::BinarySensor us_link;
+  us.set_model(WASHER_MODEL_DC92_02395A);
+  us.set_uart_parent(&us_uart);
+  us.set_temperature_selection_text_sensor(&us_temperature);
+  us.set_rinse_selection_text_sensor(&us_rinse);
+  us.set_spin_selection_text_sensor(&us_spin);
+  us.set_soil_selection_text_sensor(&us_soil);
+  us.set_link_active_binary_sensor(&us_link);
+  feed(us, us_uart, frame(true)); // The 32-byte DC92-01950B format is not valid here.
+  us.update();
+  assert(!us_link.state && !us_temperature.has_state());
+  feed(us, us_uart, captured("5AA5C018011E015C0118010601E680BF00800000000000FF000000000023009B4F"));
+  us.update();
+  assert(us_link.state && us_temperature.state == "Hot" && us_rinse.state == "2");
+  assert(us_spin.state == "Level 4" && us_soil.state == "Level 3");
+  feed(us, us_uart, captured("5AA5C018001E005C0000000001E680FF00800000000000FF00000000002300A907"));
+  assert(us_temperature.state == "Cold");
+  feed(us, us_uart, captured("5AA5C000001E005C0100010001CF806D00800000000000FF00000000002300DBEA"));
+  assert(us_temperature.state == "Level 3" && us_rinse.state == "0");
+  feed(us, us_uart, captured("5AA5C0180000005C0100010001CF80ED00000000000000FF0000000000230054B4"));
+  assert(us_spin.state == "Level 0");
+  feed(us, us_uart, captured("5AA5C010001F00500100010001CF80FF00800000000000FF0000000000230001AE"));
+  assert(us_rinse.state == "1" && us_spin.state == "Level 5" && us_soil.state == "Level 1");
+  feed(us, us_uart, captured("5AA5C010001F005F0118010601CF80EF00800000000000FF0000000000230051DB"));
+  assert(us_soil.state == "Level 5");
+
   SamsungWasherRawCaptureSwitch inverted_capture;
   inverted_capture.set_inverted(true);
   inverted_capture.set_restore_mode(switch_::SWITCH_ALWAYS_OFF);

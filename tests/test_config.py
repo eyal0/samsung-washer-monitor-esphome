@@ -66,6 +66,7 @@ class ConfigTest(unittest.TestCase):
         configs = {
             "example": example("washer.yaml"),
             "thread_example": example("washer-thread.yaml"),
+            "dc92_02395a_example": example("washer-dc92-02395a.yaml"),
             "minimal": BASE.replace("  secondary_uart_id: secondary\n", ""),
             "dual_uart": BASE,
             "cycle_only": BASE + "  cycle_status:\n    name: Cycle status\n",
@@ -74,6 +75,11 @@ class ConfigTest(unittest.TestCase):
                 "  uart_id: primary\n  secondary_uart_id: secondary\n",
                 "  - uart_id: primary\n  - uart_id: secondary\n",
             ),
+            "dc92_02395a": BASE + "  model: DC92-02395A\n"
+            + "".join(f"  {key}:\n    name: {key}\n" for key in (
+                "temperature_selection", "rinse_selection", "spin_selection",
+                "soil_selection", "uart_link_active",
+            )),
             "uart_debug_without_receiver": BASE.replace(
                 "    rx_pin: GPIO1\n",
                 "    rx_pin: GPIO1\n    debug:\n      dummy_receiver: false\n",
@@ -121,6 +127,14 @@ class ConfigTest(unittest.TestCase):
             "  uart_id: primary\n  secondary_uart_id: secondary\n",
             "  - uart_id: primary\n  - uart_id: primary\n",
         ), False, "used both")
+
+    def test_model_entities(self):
+        self.validate(BASE + "  soil_selection:\n    name: Soil\n", False, "not decoded for model DC92-01950B")
+        self.validate(
+            BASE + "  model: DC92-02395A\n  cycle_status:\n    name: Cycle\n",
+            False, "not decoded for model DC92-02395A",
+        )
+        self.validate(BASE + "  model: DC92-00000X\n", False)
 
     def test_dummy_receiver_rejected(self):
         for pin in (1, 2):

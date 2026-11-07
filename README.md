@@ -4,6 +4,8 @@ Local ESPHome monitoring for my **Samsung WW11BGA046**, which uses the **DC92-01
 
 The [DC92-01950B parts catalog](https://www.sos-parts.com/display-card-original-control-unit-samsung-dc92-01950b-133080.html) lists this panel in **80 regional washer variants**, so this may also work with other machines using the same panel. Only my machine has been tested so far.
 
+The **Samsung WF45R6100AP/US** with the **DC92-02395A** board is also partly supported: temperature, rinse, spin and soil selections and the UART link. See [Washer models](#washer-models).
+
 **Receive-only:** this cannot start, stop or change a wash remotely.
 
 **Experimental DIY project:** tested on one washer, not a qualified or plug-and-play retrofit. Read [Safety](#safety) before attempting any hardware work.
@@ -103,6 +105,8 @@ This is my prototype, not a recommended permanent mounting method or a qualified
 - **Washer:** Samsung WW11BGA046.
 - **ESP board:** ESP32-C6 SuperMini.
 
+The DC92-02395A board in a Samsung WF45R6100AP/US has been decoded from UART captures; see [Washer models](#washer-models).
+
 I used an ESP32-C6, but a C6 is not required. Other ESPHome-supported ESP boards should work too, provided they have one usable UART RX channel for the readings (two if you also want CN803 pin 2 raw diagnostics, as in the example configuration). Adjust the board, framework, logger and RX pins in the configuration for your hardware; only the C6 has been tested here.
 
 For other washers, check your installed panel and verify the electrical interface, packet format and decoded readings. Reports from other washers and ESP boards are welcome!
@@ -137,8 +141,9 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
 
 ### Component configuration
 
-The [`washer.yaml`](firmware/washer.yaml) example contains all supported entities. Under `samsung_washer`:
+The [`washer.yaml`](firmware/washer.yaml) example contains all supported entities for the DC92-01950B. Under `samsung_washer`:
 
+- `model` selects the control board's frame format: `DC92-01950B` (default) or `DC92-02395A`. See [Washer models](#washer-models).
 - `uart_id` selects the **CN803 pin 1** UART: 9600 baud, 8 data bits, no parity, 1 stop bit. This stream supplies all readings.
 - `secondary_uart_id` optionally selects the **CN803 pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
 - Every entity block is optional. Standard ESPHome entity options such as `id`, `icon`, filters and automations remain available. Tracking does not depend on which entities you expose.
@@ -146,6 +151,20 @@ The [`washer.yaml`](firmware/washer.yaml) example contains all supported entitie
 - `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and resets cycle status to Unknown; a blank panel must persist for two seconds before reporting Off.
 
 No parser header or YAML lambdas need to be copied. When updating an existing installation, remove the old `includes: washer_parser.h`, washer globals/interval, template entities and UART debug lambdas before adding the new component blocks. The example keeps the old entity names, so Home Assistant entity IDs stay the same; don't rename them if you want to keep your history and automations. The old template entities' ESPHome `id` values (such as `cycle_status` or `packet_diagnostics`) are not set by default; if your own YAML refers to them, add the `id` to the matching entity block.
+
+### Washer models
+
+| | DC92-01950B (WW11BGA046) | DC92-02395A (WF45R6100AP/US) |
+| --- | --- | --- |
+| Pin 1 frame | 32 bytes | 33 bytes |
+| `temperature_selection` | `20 °C` to `90 °C` | `Cold`, `Level 2`, `Level 3`, `Level 4`, `Hot` |
+| `rinse_selection` | `1` to `5` | `0` to `5` |
+| `spin_selection` | `No Spin`, `400 rpm` to `1400 rpm` | `Level 0` to `Level 5` |
+| `soil_selection` | Not available | `Level 1` to `Level 5` |
+| `uart_link_active` | Yes | Yes |
+| Cycle status, program, displayed time, option, panel on, Bubble Soak, Easy Iron, door lock | Yes | Not decoded yet |
+
+Both formats start with `5A A5` and end with the same CRC-16. Configuring an entity that isn't decoded for the selected model is a validation error. The DC92-02395A byte layout is documented in [`docs/debugging.txt`](docs/debugging.txt). For that board, use [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml) instead of `washer.yaml`; it contains all entities supported for that model.
 
 ### Thread instead of Wi-Fi
 

@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_MODEL,
     CONF_UART_ID,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
@@ -23,6 +24,14 @@ SamsungWasherComponent = samsung_washer_ns.class_(
 SamsungWasherRawCaptureSwitch = samsung_washer_ns.class_(
     "SamsungWasherRawCaptureSwitch", switch.Switch, cg.Component
 )
+WasherModel = samsung_washer_ns.enum("WasherModel")
+
+MODEL_DC92_01950B = "DC92-01950B"
+MODEL_DC92_02395A = "DC92-02395A"
+MODELS = {
+    MODEL_DC92_01950B: WasherModel.WASHER_MODEL_DC92_01950B,
+    MODEL_DC92_02395A: WasherModel.WASHER_MODEL_DC92_02395A,
+}
 
 CONF_SECONDARY_UART_ID = "secondary_uart_id"
 
@@ -33,6 +42,7 @@ CONF_SPIN_SELECTION = "spin_selection"
 CONF_RINSE_SELECTION = "rinse_selection"
 CONF_DISPLAYED_TIME = "displayed_time"
 CONF_OPTION = "option"
+CONF_SOIL_SELECTION = "soil_selection"
 
 CONF_PANEL_ON = "panel_on"
 CONF_UART_LINK_ACTIVE = "uart_link_active"
@@ -50,6 +60,7 @@ TEXT_SENSORS = (
     (CONF_RINSE_SELECTION, "set_rinse_selection_text_sensor"),
     (CONF_DISPLAYED_TIME, "set_displayed_time_text_sensor"),
     (CONF_OPTION, "set_option_selection_text_sensor"),
+    (CONF_SOIL_SELECTION, "set_soil_selection_text_sensor"),
 )
 
 BINARY_SENSORS = (
@@ -60,10 +71,33 @@ BINARY_SENSORS = (
     (CONF_DOOR_LOCK_INDICATOR, "set_lock_indicator_binary_sensor"),
 )
 
-CONFIG_SCHEMA = (
+MODEL_ENTITIES = {
+    MODEL_DC92_01950B: {
+        CONF_CYCLE_STATUS, CONF_PROGRAM_INDICATOR, CONF_TEMPERATURE_SELECTION,
+        CONF_SPIN_SELECTION, CONF_RINSE_SELECTION, CONF_DISPLAYED_TIME, CONF_OPTION,
+        CONF_PANEL_ON, CONF_UART_LINK_ACTIVE, CONF_BUBBLE_SOAK_INDICATOR,
+        CONF_EASY_IRON_INDICATOR, CONF_DOOR_LOCK_INDICATOR,
+    },
+    MODEL_DC92_02395A: {
+        CONF_TEMPERATURE_SELECTION, CONF_SPIN_SELECTION, CONF_RINSE_SELECTION,
+        CONF_SOIL_SELECTION, CONF_UART_LINK_ACTIVE,
+    },
+}
+
+
+def _validate_model_entities(config: ConfigType) -> ConfigType:
+    model = config[CONF_MODEL]
+    for key, _ in TEXT_SENSORS + BINARY_SENSORS:
+        if key in config and key not in MODEL_ENTITIES[model]:
+            raise cv.Invalid(f"{key} is not decoded for model {model}", path=[key])
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SamsungWasherComponent),
+            cv.Optional(CONF_MODEL, default=MODEL_DC92_01950B): cv.enum(MODELS, upper=True),
             cv.Optional(CONF_SECONDARY_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_CYCLE_STATUS): text_sensor.text_sensor_schema(
                 icon="mdi:washing-machine"
@@ -85,6 +119,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_OPTION): text_sensor.text_sensor_schema(
                 icon="mdi:tune-variant"
+            ),
+            cv.Optional(CONF_SOIL_SELECTION): text_sensor.text_sensor_schema(
+                icon="mdi:liquid-spot"
             ),
             cv.Optional(CONF_PANEL_ON): binary_sensor.binary_sensor_schema(
                 icon="mdi:power"
@@ -112,7 +149,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("2s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_model_entities,
 )
 
 _PRIMARY_UART_VALIDATE = uart.final_validate_device_schema(
@@ -158,6 +196,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(var.set_model(config[CONF_MODEL]))
 
     if secondary_uart_id := config.get(CONF_SECONDARY_UART_ID):
         secondary_uart = await cg.get_variable(secondary_uart_id)

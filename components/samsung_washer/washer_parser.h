@@ -97,6 +97,27 @@ inline const char *washer_option(uint8_t indicators) {
   }
 }
 
+// DC92-02395A rinse, spin and soil bars fill bits 4..0 from the top; other patterns are -1.
+inline int washer_bar_level(uint8_t bits) {
+  bits &= 0x1f;
+  for (int level = 0; level <= 5; ++level) {
+    if (bits == ((0x1f << (5 - level)) & 0x1f)) return level;
+  }
+  return -1;
+}
+
+// DC92-02395A temperature: Cold is 1; bytes 10, 8, 6 and 4 each light one more bar segment.
+inline int washer_temperature_level(const std::vector<uint8_t> &p) {
+  int level = 1;
+  bool gap = false;
+  for (size_t i : {10, 8, 6, 4}) {
+    if (p[i] > 1 || (p[i] == 1 && gap)) return -1;
+    if (p[i] == 1) ++level;
+    else gap = true;
+  }
+  return level;
+}
+
 inline int washer_delay_hours(uint8_t tens_glyph, uint8_t ones_glyph, uint8_t suffix_glyph) {
   if ((suffix_glyph & 0x7f) != 0x1e) return -1;
   int tens = (tens_glyph & 0x7f) == 0 ? 0 : washer_digit(tens_glyph);

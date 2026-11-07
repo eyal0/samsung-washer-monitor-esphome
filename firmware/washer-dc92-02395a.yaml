@@ -1,0 +1,59 @@
+# Samsung WF45R6100AP/US with the DC92-02395A control board.
+# For the DC92-01950B (WW11BGA046), use washer.yaml instead.
+substitutions:
+  cn803_pin2_rx_pin: GPIO2
+  cn803_pin1_rx_pin: GPIO1
+
+esphome:
+  name: samsung-washer
+  friendly_name: Samsung washer
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://kralonur/samsung-washer-monitor-esphome@main
+    components: [samsung_washer]
+
+uart:
+  - id: cn803_pin2_uart
+    rx_pin: ${cn803_pin2_rx_pin}
+    baud_rate: 9600
+  - id: cn803_pin1_uart
+    rx_pin: ${cn803_pin1_rx_pin}
+    baud_rate: 9600
+
+samsung_washer:
+  model: DC92-02395A
+  uart_id: cn803_pin1_uart
+  secondary_uart_id: cn803_pin2_uart
+  temperature_selection:
+    name: Temperature selection
+  spin_selection:
+    name: Spin selection
+  rinse_selection:
+    name: Rinse selection
+  soil_selection:
+    name: Soil selection
+  uart_link_active:
+    name: UART link active
+  uart_raw_capture:
+    name: UART raw capture
