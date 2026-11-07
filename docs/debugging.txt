@@ -19,16 +19,9 @@ The bottom 5 bits of RR indicate which rinse cycle is selected.  bit 5 of byte 3
       rinse 4: 5AA5C01E001E005C0100010001ED80EF00800000000000FF000000000023001095
       rinse 5: 5AA5C01F001E005C0118010601BF80FD00800000000000FF00000000002300F00E
 
-The bottom 5 bits of SC indicate which spin cycle is selected.  bit 5 of byte 3 is the spin 0, bit 4 is spin 1, etc.
-                         SC
-       spin 0: 5AA5C0180000005C0100010001CF80ED00000000000000FF0000000000230054B4
-       spin 1: 5AA5C0180010005C0100010001CF80ED00800000000000FF000000000023006490
-       spin 2: 5AA5C0180018005C0100010001E680DB00800000000000FF0000000000230097DF
-       spin 3: 5AA5C018001C005C0100010001E680ED00800000000000FF000000000023007A99
-       spin 4: 5AA5C018001E005C0100010001E680FD00800000000000FF00000000002300F5F2
-       spin 5: 5AA5C018001F005C0100010001E680FD00800000000000FF00000000002300F5F2
+The bottom 5 bits of SC indicate which spin cycle is selected.  bit 5 of byte 5 is the spin 0, bit 4 is spin 1, etc.
 
-The bottom 5 bits of SO indicate which soil level is selected.  bit 5 of byte 3 is the soil 0, bit 4 is soil 1, etc.
+The bottom 5 bits of SO indicate which soil level is selected.  bit 5 of byte 7 is the soil 0, bit 4 is soil 1, etc.
                              SO
        soil 1: 5AA5C010001F00500100010001CF80FF00800000000000FF0000000000230001AE
        soil 2: 5AA5C010001F00580100010001E680BF00800000000000FF00000000002300D13E
