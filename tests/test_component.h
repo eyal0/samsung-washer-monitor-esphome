@@ -250,7 +250,7 @@ inline void run() {
   feed(wf, wf_uart, temperature_1);
   assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
   assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
-  assert(wf_status.state == "Unknown" && !wf_program.has_state() && !wf_panel.has_state());
+  assert(wf_status.state == "Unknown" && wf_program.state == "Normal" && !wf_panel.has_state());
   assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
@@ -258,7 +258,7 @@ inline void run() {
   assert(wf_spin.state == "High" && wf_soil.state == "Heavy" && wf_rinse.state == "1");
   assert(wf_display.state == "1:39");
   feed(wf, wf_uart, frame(true)); // Original 32-byte Cotton frame is the wrong length.
-  assert(wf_temperature.state == "3" && wf_program.has_state() == false);
+  assert(wf_temperature.state == "3" && wf_program.state == "Normal");
   wf.update();
   assert(wf_link.state);
   auto corrupt = temperature_1;
@@ -270,14 +270,15 @@ inline void run() {
   const auto other_cycle_2 = wf_hex("5AA5C018001F005F0018010681ED00EF00800000000000FF00000000002300670C");
   feed(wf, wf_uart, other_cycle_cold);
   assert(wf_temperature.state == "Cold" && wf_spin.state == "High" && wf_soil.state == "Heavy");
+  assert(wf_program.state == "Heavy Duty");
   feed(wf, wf_uart, other_cycle_2);
   assert(wf_temperature.state == "2" && wf_display.state == "1:59");
   const auto minutes_41 = wf_hex("5AA5C018001E005C0000000001E6808600830000000000FF000000000023007433");
   const auto minutes_37 = wf_hex("5AA5C018001E001C00000000014F00A700820000000000FF000000000023001399");
   feed(wf, wf_uart, minutes_41);
-  assert(wf_display.state == "0:41" && wf_lock.state);
-  feed(wf, wf_uart, minutes_37);
-  assert(wf_display.state == "0:37" && wf_lock.state);
+  assert(wf_display.state == "0:41" && wf_lock.state && wf_program.state == "Normal");
+  feed(wf, wf_uart, minutes_37); // Normal's light is off in this copy while the program blinks.
+  assert(wf_display.state == "0:37" && wf_lock.state && wf_program.state == "Normal");
   const auto door_locked = wf_hex("5AA5C00000000000000000000000003F00020000000000FF00000000002300BE14");
   const auto door_unlocked = wf_hex("5AA5C00000000000000000000000003F00000000000000FF0000000000230048D6");
   const auto door_locked_copy = wf_hex("5AA5C000001E005C000000000000800600820000000000FF000000000023006D04");
@@ -286,7 +287,25 @@ inline void run() {
   feed(wf, wf_uart, door_locked);
   assert(wf_lock.state);
   feed(wf, wf_uart, door_locked_copy);
-  assert(wf_lock.state);
+  assert(wf_lock.state && wf_program.state == "Normal");
+  const struct {
+    const char *hex;
+    const char *program;
+    const char *temperature;
+  } programs[] = {
+      {"5AA5C018001E005C0118810601BF00CF00800000000000FF00000000002300EC71", "Whites", "3"},
+      {"5AA5C0180018005C81180106018600ED00800000000000FF00000000002300902A", "Bedding", "3"},
+      {"5AA5C018011E815C0118015B01DB00FF00800000000000FF00000000002300476E", "Sanitize", "Hot"},
+      {"5AA5C018011F01400118014F01ED40DB00800000000000FF0000000000230005D0", "Self Clean", "Hot"},
+      {"5AA5C010001E004000000000400600EF00800000000000FF000000000023008CD6", "Rinse & Spin", "No indicator"},
+      {"5AA5C0180018005C0100410001ED00BF00800000000000FF000000000023005694", "Perm Press", "3"},
+      {"5AA5C018001C005C4000000001E600E600800000000000FF000000000023004A9F", "Delicates", "Cold"},
+      {"5AA5C010001F40500100010001DB00DB00800000000000FF000000000023005A28", "Quick Wash", "3"},
+  };
+  for (const auto &program : programs) {
+    feed(wf, wf_uart, wf_hex(program.hex));
+    assert(wf_program.state == program.program && wf_temperature.state == program.temperature);
+  }
 
   std::puts("PASS: component runtime tests");
   std::exit(0);

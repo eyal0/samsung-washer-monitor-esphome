@@ -259,8 +259,12 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
 }
 
 void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
-  // Cycle, program, panel, and the other indicator lamps are not decoded on this board.
+  // Cycle, panel, and the other indicator lamps are not decoded on this board.
   publish_text(this->cycle_status_text_sensor_, "Unknown");
+  // A dark program light is the blink while running, so it leaves the current program in place.
+  const char *program = washer_dc92_02395a_program(p[6], p[8], p[10], p[12], p[14]);
+  if (program != nullptr)
+    publish_text(this->program_indicator_text_sensor_, program);
   const int temperature = washer_dc92_02395a_temperature(p[4], p[6], p[8], p[10], p[12]);
   publish_text(this->temperature_selection_text_sensor_, washer_dc92_02395a_temperature_text(temperature));
   publish_text(this->rinse_selection_text_sensor_,

@@ -146,10 +146,13 @@ inline const char *washer_dc92_02395a_soil_text(int level) {
 
 // DC92-02395A temperature LEDs, hottest first: frame bytes 4, 6, 8, 10 and 12.
 // A lit LED is the low bit, 0x01. The bar fills from byte 12 (cold) toward byte 4 (hot).
-// On some cycles byte 12 also has its high bit set; that bit is not a temperature LED.
+// Bits 6 and 7 of bytes 6, 8, 10 and 12 are program lights.
 // All five off is no indicator, not the Cold setting.
 inline int washer_dc92_02395a_temperature(uint8_t t5, uint8_t t4, uint8_t t3, uint8_t t2, uint8_t t1) {
-  t1 &= 0x7f;
+  t4 &= 0x3f;
+  t3 &= 0x3f;
+  t2 &= 0x3f;
+  t1 &= 0x3f;
   const uint8_t lights[] = {t1, t2, t3, t4, t5};
   int level = 0;
   bool ended = false;
@@ -164,6 +167,30 @@ inline int washer_dc92_02395a_temperature(uint8_t t5, uint8_t t4, uint8_t t3, ui
     }
   }
   return level;
+}
+
+// Program lights around the dial. Bit 7 runs Normal, Heavy Duty, Whites, Bedding, Sanitize.
+// Bit 6 runs Rinse & Spin, Perm Press, Delicates, Quick Wash, Self Clean.
+// No lit program is the blink while running, so the caller keeps the previous program.
+// Two lit programs is not a selection.
+inline const char *washer_dc92_02395a_program(uint8_t b6, uint8_t b8, uint8_t b10, uint8_t b12, uint8_t b14) {
+  const struct {
+    uint8_t value;
+    uint8_t mask;
+    const char *name;
+  } programs[] = {
+      {b14, 0x80, "Normal"},      {b12, 0x80, "Heavy Duty"}, {b10, 0x80, "Whites"},
+      {b8, 0x80, "Bedding"},      {b6, 0x80, "Sanitize"},    {b12, 0x40, "Rinse & Spin"},
+      {b10, 0x40, "Perm Press"},  {b8, 0x40, "Delicates"},   {b6, 0x40, "Quick Wash"},
+      {b14, 0x40, "Self Clean"},
+  };
+  const char *found = nullptr;
+  for (const auto &program : programs) {
+    if ((program.value & program.mask) == 0) continue;
+    if (found != nullptr) return nullptr;
+    found = program.name;
+  }
+  return found;
 }
 
 inline const char *washer_dc92_02395a_temperature_text(int level) {

@@ -161,10 +161,28 @@ int main(int argc, char **argv) {
   assert(washer_dc92_02395a_temperature(0, 1, 1, 1, 1) == 4);
   assert(washer_dc92_02395a_temperature(1, 1, 1, 1, 1) == 5);
   assert(washer_dc92_02395a_temperature(1, 0, 0, 0, 0) == -1); // Hot lit while cold is off.
-  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x81) == 1); // High bit of byte 12 is not the LED.
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x81) == 1); // Heavy Duty shares byte 12.
   assert(washer_dc92_02395a_temperature(0, 0, 0, 1, 0x81) == 2);
   assert(washer_dc92_02395a_temperature(1, 1, 1, 1, 0x81) == 5);
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0x81, 1) == 2); // Whites.
+  assert(washer_dc92_02395a_temperature(0, 0x40, 1, 1, 1) == 3); // Quick Wash.
+  assert(washer_dc92_02395a_temperature(0, 0, 0x40, 0, 1) == 1); // Delicates.
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x40) == 0); // Rinse & Spin.
+  assert(washer_dc92_02395a_temperature(1, 0x81, 1, 1, 1) == 5); // Sanitize.
+  assert(washer_dc92_02395a_temperature(0, 0x02, 0, 0, 1) == -1); // A bit that is not a program light.
   assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x80) == 0);
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0, 0, 0x80)) == "Normal");
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0, 0x80, 0)) == "Heavy Duty");
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0x80, 0, 0)) == "Whites");
+  assert(std::string(washer_dc92_02395a_program(0, 0x80, 0, 0, 0)) == "Bedding");
+  assert(std::string(washer_dc92_02395a_program(0x80, 0, 0, 0, 0)) == "Sanitize");
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0, 0x40, 0)) == "Rinse & Spin");
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0x40, 0, 0)) == "Perm Press");
+  assert(std::string(washer_dc92_02395a_program(0, 0x40, 0, 0, 0)) == "Delicates");
+  assert(std::string(washer_dc92_02395a_program(0x40, 0, 0, 0, 0)) == "Quick Wash");
+  assert(std::string(washer_dc92_02395a_program(0, 0, 0, 0, 0x40)) == "Self Clean");
+  assert(washer_dc92_02395a_program(0, 0, 0, 0, 0) == nullptr); // Blink.
+  assert(washer_dc92_02395a_program(0, 0, 0, 0x80, 0x80) == nullptr); // Two lights.
   assert(std::string(washer_dc92_02395a_temperature_text(0)) == "No indicator");
   assert(std::string(washer_dc92_02395a_temperature_text(1)) == "Cold");
   assert(std::string(washer_dc92_02395a_temperature_text(3)) == "3");
