@@ -216,6 +216,52 @@ inline void run() {
   capture.turn_off();
   assert(!capture.state);
 
+  // DC92-02395A frames are 33 bytes and must not update the original decoder.
+  TestUART wf_uart;
+  SamsungWasherComponent wf;
+  text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil;
+  binary_sensor::BinarySensor wf_link, wf_panel;
+  auto wf_hex = [](const char *hex) {
+    std::vector<uint8_t> bytes;
+    while (hex[0] != 0 && hex[1] != 0) {
+      auto nibble = [](char c) { return c <= '9' ? c - '0' : c - 'A' + 10; };
+      bytes.push_back((nibble(hex[0]) << 4) | nibble(hex[1]));
+      hex += 2;
+    }
+    return bytes;
+  };
+  const auto temperature_1 = wf_hex("5AA5C018001E005C0000000001E680FF00800000000000FF00000000002300A907");
+  const auto rinse_0 = wf_hex("5AA5C000001E005C0100010001CF806D00800000000000FF00000000002300DBEA");
+  const auto soil_5 = wf_hex("5AA5C010001F005F0118010601CF80EF00800000000000FF0000000000230051DB");
+  wf.set_uart_parent(&wf_uart);
+  wf.set_cycle_status_text_sensor(&wf_status);
+  wf.set_program_indicator_text_sensor(&wf_program);
+  wf.set_temperature_selection_text_sensor(&wf_temperature);
+  wf.set_spin_selection_text_sensor(&wf_spin);
+  wf.set_rinse_selection_text_sensor(&wf_rinse);
+  wf.set_soil_selection_text_sensor(&wf_soil);
+  wf.set_link_active_binary_sensor(&wf_link);
+  wf.set_panel_on_binary_sensor(&wf_panel);
+  feed(wf, wf_uart, temperature_1);
+  assert(!wf_temperature.has_state() && !wf_program.has_state());
+  wf.set_model(WasherModel::DC92_02395A);
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
+  assert(wf_spin.state == "4" && wf_soil.state == "3");
+  assert(wf_status.state == "Unknown" && !wf_program.has_state() && !wf_panel.has_state());
+  feed(wf, wf_uart, rinse_0);
+  assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
+  feed(wf, wf_uart, soil_5);
+  assert(wf_spin.state == "5" && wf_soil.state == "5" && wf_rinse.state == "1");
+  feed(wf, wf_uart, frame(true)); // Original 32-byte Cotton frame is the wrong length.
+  assert(wf_temperature.state == "3" && wf_program.has_state() == false);
+  wf.update();
+  assert(wf_link.state);
+  auto corrupt = temperature_1;
+  corrupt[12] ^= 1;
+  feed(wf, wf_uart, corrupt);
+  assert(wf_temperature.state == "3");
+
   std::puts("PASS: component runtime tests");
   std::exit(0);
 }

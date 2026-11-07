@@ -6,7 +6,7 @@
 
 int main(int argc, char **argv) {
   assert(argc == 4);
-  for (size_t length : {30, 32}) {
+  for (size_t length : {30, 32, 33}) {
     std::vector<uint8_t> frame(length, 0);
     frame[0] = 0x5a;
     frame[1] = 0xa5;
@@ -133,5 +133,82 @@ int main(int argc, char **argv) {
   assert(washer_delay_hours(0xeb, 0xbc, 0x1e) == 24);
   assert(washer_delay_hours(0xeb, 0xdd, 0x1e) == -1);
   assert(washer_delay_hours(0x80, 0xeb, 0x77) == -1);
+  assert(washer_dc92_02395a_bar_level(0x00) == 0);
+  assert(washer_dc92_02395a_bar_level(0x10) == 1);
+  assert(washer_dc92_02395a_bar_level(0x18) == 2);
+  assert(washer_dc92_02395a_bar_level(0x1c) == 3);
+  assert(washer_dc92_02395a_bar_level(0x1e) == 4);
+  assert(washer_dc92_02395a_bar_level(0x1f) == 5);
+  assert(washer_dc92_02395a_bar_level(0x50) == 1); // Soil keeps 0x40 beside the bar.
+  assert(washer_dc92_02395a_bar_level(0x14) == -1); // A gap is not a level.
+  assert(std::string(washer_dc92_02395a_bar_text(0)) == "0");
+  assert(std::string(washer_dc92_02395a_bar_text(5)) == "5");
+  assert(std::string(washer_dc92_02395a_bar_text(-1)) == "Unknown");
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0) == 0);
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 1) == 1);
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 1, 1) == 2);
+  assert(washer_dc92_02395a_temperature(0, 0, 1, 1, 1) == 3);
+  assert(washer_dc92_02395a_temperature(0, 1, 1, 1, 1) == 4);
+  assert(washer_dc92_02395a_temperature(1, 1, 1, 1, 1) == 5);
+  assert(washer_dc92_02395a_temperature(1, 0, 0, 0, 0) == -1); // Hot lit while cold is off.
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x81) == -1);
+  assert(std::string(washer_dc92_02395a_temperature_text(0)) == "No indicator");
+  assert(std::string(washer_dc92_02395a_temperature_text(1)) == "Cold");
+  assert(std::string(washer_dc92_02395a_temperature_text(3)) == "3");
+  assert(std::string(washer_dc92_02395a_temperature_text(5)) == "Hot");
+  struct Dc92Sample {
+    const char *hex;
+    int temperature;
+    int rinse;
+    int spin;
+    int soil;
+  };
+  const Dc92Sample samples[] = {
+      {"5AA5C018001E005C0000000001E680FF00800000000000FF00000000002300A907", 1, 2, 4, 3},
+      {"5AA5C018001E005C0000010001E680FD00800000000000FF000000000023003C98", 2, 2, 4, 3},
+      {"5AA5C018001E005C0100010001E680ED00800000000000FF000000000023007A99", 3, 2, 4, 3},
+      {"5AA5C018001E015C0100010001ED80DB00800000000000FF000000000023006B95", 4, 2, 4, 3},
+      {"5AA5C018011E015C0118010601E680BF00800000000000FF000000000023009B4F", 5, 2, 4, 3},
+      {"5AA5C000001E005C0100010001CF806D00800000000000FF00000000002300DBEA", 3, 0, 4, 3},
+      {"5AA5C010001E005C0100010001E680DB00800000000000FF00000000002300EBBD", 3, 1, 4, 3},
+      {"5AA5C018001E005C0100010001E680ED00800000000000FF000000000023007A99", 3, 2, 4, 3},
+      {"5AA5C01C001E005C0100010001ED80DB00800000000000FF00000000002300BC71", 3, 3, 4, 3},
+      {"5AA5C01E001E005C0100010001ED80EF00800000000000FF000000000023001095", 3, 4, 4, 3},
+      {"5AA5C01F001E005C0118010601BF80FD00800000000000FF00000000002300F00E", 3, 5, 4, 3},
+      {"5AA5C010001F00500100010001CF80FF00800000000000FF0000000000230001AE", 3, 1, 5, 1},
+      {"5AA5C010001F00580100010001E680BF00800000000000FF00000000002300D13E", 3, 1, 5, 2},
+      {"5AA5C010001F005C0100010001E680CF00800000000000FF00000000002300E404", 3, 1, 5, 3},
+      {"5AA5C010001F005E0100010001E680FD00800000000000FF00000000002300AF75", 3, 1, 5, 4},
+      {"5AA5C010001F005F0118010601CF80EF00800000000000FF0000000000230051DB", 3, 1, 5, 5},
+  };
+  auto decode_hex = [](const char *hex) {
+    std::vector<uint8_t> bytes;
+    while (hex[0] != 0 && hex[1] != 0) {
+      auto nibble = [](char c) { return c <= '9' ? c - '0' : c - 'A' + 10; };
+      bytes.push_back((nibble(hex[0]) << 4) | nibble(hex[1]));
+      hex += 2;
+    }
+    return bytes;
+  };
+  WasherParser dc92_parser(33);
+  WasherParser old_parser(32);
+  int dc92_frames = 0;
+  int old_frames = 0;
+  for (const auto &sample : samples) {
+    auto bytes = decode_hex(sample.hex);
+    assert(bytes.size() == 33);
+    for (auto b : bytes) {
+      old_parser.feed(b, [&](const std::vector<uint8_t> &) { ++old_frames; });
+      dc92_parser.feed(b, [&](const std::vector<uint8_t> &p) {
+        ++dc92_frames;
+        assert(washer_dc92_02395a_temperature(p[4], p[6], p[8], p[10], p[12]) == sample.temperature);
+        assert(washer_dc92_02395a_bar_level(p[3]) == sample.rinse);
+        assert(washer_dc92_02395a_bar_level(p[5]) == sample.spin);
+        assert(washer_dc92_02395a_bar_level(p[7]) == sample.soil);
+      });
+    }
+  }
+  assert(dc92_frames == 16);
+  assert(old_frames == 0); // A 32-byte parser must not accept these frames.
   std::cout << found << " frames validated\n";
 }

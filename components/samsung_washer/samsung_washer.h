@@ -12,6 +12,11 @@
 
 namespace esphome::samsung_washer {
 
+enum class WasherModel : uint8_t {
+  DC92_01950B,
+  DC92_02395A,
+};
+
 class SamsungWasherRawCaptureSwitch final : public switch_::Switch, public Component {
  public:
   void setup() override;
@@ -29,6 +34,11 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
   void update() override;
   void dump_config() override;
 
+  void set_model(WasherModel model) {
+    this->model_ = model;
+    // Pin 2 is raw capture only. Its frame length is not known for DC92-02395A.
+    this->primary_parser_.set_length(model == WasherModel::DC92_02395A ? 33 : 32);
+  }
   void set_secondary_uart(uart::UARTComponent *uart) { this->secondary_uart_ = uart; }
   void set_raw_capture_switch(switch_::Switch *sw) { this->raw_capture_switch_ = sw; }
 
@@ -37,6 +47,7 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
   SUB_TEXT_SENSOR(temperature_selection)
   SUB_TEXT_SENSOR(spin_selection)
   SUB_TEXT_SENSOR(rinse_selection)
+  SUB_TEXT_SENSOR(soil_selection)
   SUB_TEXT_SENSOR(displayed_time)
   SUB_TEXT_SENSOR(option_selection)
 
@@ -49,11 +60,13 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
  protected:
   void reset_tracking_();
   void handle_primary_frame_(const std::vector<uint8_t> &p);
+  void handle_dc92_02395a_frame_(const std::vector<uint8_t> &p);
   void flush_raw_capture_(const char *label, std::vector<uint8_t> &buf, std::vector<uint8_t> &last_row,
                           uint32_t last_byte_ms, bool force);
   void capture_raw_byte_(const char *label, std::vector<uint8_t> &buf, std::vector<uint8_t> &last_row,
                          uint32_t &last_byte_ms, uint8_t byte);
 
+  WasherModel model_{WasherModel::DC92_01950B};
   uart::UARTComponent *secondary_uart_{nullptr};
   switch_::Switch *raw_capture_switch_{nullptr};
 

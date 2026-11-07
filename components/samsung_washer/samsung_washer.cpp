@@ -128,6 +128,10 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
     this->reset_tracking_();
   this->last_primary_ms_ = now;
   this->has_primary_frame_ = true;
+  if (this->model_ == WasherModel::DC92_02395A) {
+    this->handle_dc92_02395a_frame_(p);
+    return;
+  }
   this->cycle_tracker_.feed(p[23], p[18] != 0 || p[20] != 0);
 
   bool panel_lit = false;
@@ -245,13 +249,26 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
   publish_text(this->displayed_time_text_sensor_, display);
 }
 
+void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
+  // Cycle, program, time and the indicator lamps are not decoded on this board.
+  publish_text(this->cycle_status_text_sensor_, "Unknown");
+  const int temperature = washer_dc92_02395a_temperature(p[4], p[6], p[8], p[10], p[12]);
+  publish_text(this->temperature_selection_text_sensor_, washer_dc92_02395a_temperature_text(temperature));
+  publish_text(this->rinse_selection_text_sensor_,
+               washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[3])));
+  publish_text(this->spin_selection_text_sensor_, washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[5])));
+  publish_text(this->soil_selection_text_sensor_, washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[7])));
+}
+
 void SamsungWasherComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Samsung Washer Monitor:");
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_ == WasherModel::DC92_02395A ? "DC92-02395A" : "DC92-01950B");
   LOG_TEXT_SENSOR("  ", "Cycle Status", this->cycle_status_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Program Indicator", this->program_indicator_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Temperature Selection", this->temperature_selection_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Spin Selection", this->spin_selection_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Rinse Selection", this->rinse_selection_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Soil Selection", this->soil_selection_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Displayed Time", this->displayed_time_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Option", this->option_selection_text_sensor_);
   LOG_BINARY_SENSOR("  ", "Panel On", this->panel_on_binary_sensor_);

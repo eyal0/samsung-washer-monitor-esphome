@@ -23,6 +23,12 @@ SamsungWasherComponent = samsung_washer_ns.class_(
 SamsungWasherRawCaptureSwitch = samsung_washer_ns.class_(
     "SamsungWasherRawCaptureSwitch", switch.Switch, cg.Component
 )
+WasherModel = samsung_washer_ns.enum("WasherModel", is_class=True)
+
+MODELS = {
+    "DC92-01950B": WasherModel.DC92_01950B,
+    "DC92-02395A": WasherModel.DC92_02395A,
+}
 
 CONF_SECONDARY_UART_ID = "secondary_uart_id"
 
@@ -31,8 +37,10 @@ CONF_PROGRAM_INDICATOR = "program_indicator"
 CONF_TEMPERATURE_SELECTION = "temperature_selection"
 CONF_SPIN_SELECTION = "spin_selection"
 CONF_RINSE_SELECTION = "rinse_selection"
+CONF_SOIL_SELECTION = "soil_selection"
 CONF_DISPLAYED_TIME = "displayed_time"
 CONF_OPTION = "option"
+CONF_MODEL = "model"
 
 CONF_PANEL_ON = "panel_on"
 CONF_UART_LINK_ACTIVE = "uart_link_active"
@@ -48,6 +56,7 @@ TEXT_SENSORS = (
     (CONF_TEMPERATURE_SELECTION, "set_temperature_selection_text_sensor"),
     (CONF_SPIN_SELECTION, "set_spin_selection_text_sensor"),
     (CONF_RINSE_SELECTION, "set_rinse_selection_text_sensor"),
+    (CONF_SOIL_SELECTION, "set_soil_selection_text_sensor"),
     (CONF_DISPLAYED_TIME, "set_displayed_time_text_sensor"),
     (CONF_OPTION, "set_option_selection_text_sensor"),
 )
@@ -64,6 +73,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SamsungWasherComponent),
+            cv.Optional(CONF_MODEL, default="DC92-01950B"): cv.enum(
+                MODELS, upper=True, underscore="-"
+            ),
             cv.Optional(CONF_SECONDARY_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_CYCLE_STATUS): text_sensor.text_sensor_schema(
                 icon="mdi:washing-machine"
@@ -79,6 +91,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_RINSE_SELECTION): text_sensor.text_sensor_schema(
                 icon="mdi:water"
+            ),
+            cv.Optional(CONF_SOIL_SELECTION): text_sensor.text_sensor_schema(
+                icon="mdi:tshirt-crew-outline"
             ),
             cv.Optional(CONF_DISPLAYED_TIME): text_sensor.text_sensor_schema(
                 icon="mdi:timer-outline"
@@ -158,6 +173,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(var.set_model(config[CONF_MODEL]))
 
     if secondary_uart_id := config.get(CONF_SECONDARY_UART_ID):
         secondary_uart = await cg.get_variable(secondary_uart_id)

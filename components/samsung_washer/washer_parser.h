@@ -8,6 +8,10 @@
 class WasherParser {
  public:
   explicit WasherParser(size_t length) : length_(length) {}
+  void set_length(size_t length) {
+    length_ = length;
+    data_.clear();
+  }
   void feed(uint8_t b, const std::function<void(const std::vector<uint8_t> &)> &callback) {
     if (data_.empty()) {
       if (b == 0x5a) data_.push_back(b);
@@ -94,6 +98,65 @@ inline const char *washer_option(uint8_t indicators) {
     case 0x08: return "Intensive";
     case 0x0c: return "Rinse+";
     default: return "None";
+  }
+}
+
+// DC92-02395A rinse (byte 3), spin (byte 5) and soil (byte 7). The low 5 bits
+// fill from bit 4 downward: 0x00, 0x10, 0x18, 0x1C, 0x1E, 0x1F are levels 0 to 5.
+// Higher bits, such as the 0x40 always set in the soil captures, are ignored.
+inline int washer_dc92_02395a_bar_level(uint8_t value) {
+  switch (value & 0x1f) {
+    case 0x00: return 0;
+    case 0x10: return 1;
+    case 0x18: return 2;
+    case 0x1c: return 3;
+    case 0x1e: return 4;
+    case 0x1f: return 5;
+    default: return -1;
+  }
+}
+
+inline const char *washer_dc92_02395a_bar_text(int level) {
+  switch (level) {
+    case 0: return "0";
+    case 1: return "1";
+    case 2: return "2";
+    case 3: return "3";
+    case 4: return "4";
+    case 5: return "5";
+    default: return "Unknown";
+  }
+}
+
+// DC92-02395A temperature LEDs, hottest first: frame bytes 4, 6, 8, 10 and 12.
+// A lit LED is 0x01. The bar fills from byte 12 (cold) toward byte 4 (hot).
+// All five off is no indicator, not the Cold setting.
+inline int washer_dc92_02395a_temperature(uint8_t t5, uint8_t t4, uint8_t t3, uint8_t t2, uint8_t t1) {
+  const uint8_t lights[] = {t1, t2, t3, t4, t5};
+  int level = 0;
+  bool ended = false;
+  for (uint8_t light : lights) {
+    if (light == 0x01) {
+      if (ended) return -1;
+      ++level;
+    } else if (light == 0x00) {
+      ended = true;
+    } else {
+      return -1;
+    }
+  }
+  return level;
+}
+
+inline const char *washer_dc92_02395a_temperature_text(int level) {
+  switch (level) {
+    case 0: return "No indicator";
+    case 1: return "Cold";
+    case 2: return "2";
+    case 3: return "3";
+    case 4: return "4";
+    case 5: return "Hot";
+    default: return "Unknown";
   }
 }
 
