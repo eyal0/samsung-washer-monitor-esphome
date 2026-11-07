@@ -42,8 +42,15 @@ void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<u
     buf.clear();
     return;
   }
-  if (buf.size() > 33)
+  if (this->model_ == WasherModel::DC92_02395A) {
+    // Pin 1 only, and only a full frame whose speaker byte is quiet.
+    if (buf.size() != 33 || buf[24] != 0x00) {
+      buf.clear();
+      return;
+    }
+  } else if (buf.size() > 33) {
     buf.resize(33);
+  }
   if (buf != last_row) {
     char hex[format_hex_size(33)];
     ESP_LOGI(RAW_TAG, "%s %" PRIu32 " %s", label, millis(), format_hex_pretty_to(hex, buf.data(), buf.size(), '\0'));
@@ -84,10 +91,11 @@ void SamsungWasherComponent::loop() {
     this->primary_parser_.feed(byte, [this](const std::vector<uint8_t> &p) { this->handle_primary_frame_(p); });
   }
 
+  const bool capture_secondary = raw_capture && this->model_ != WasherModel::DC92_02395A;
   if (this->secondary_uart_ != nullptr) {
     int sec_budget = 64;
     while (sec_budget-- > 0 && this->secondary_uart_->available() && this->secondary_uart_->read_byte(&byte)) {
-      if (raw_capture)
+      if (capture_secondary)
         this->capture_raw_byte_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_row_,
                                 this->secondary_raw_last_ms_, byte);
       this->secondary_parser_.feed(byte, [](const std::vector<uint8_t> &) {});
@@ -97,8 +105,9 @@ void SamsungWasherComponent::loop() {
   if (raw_capture) {
     this->flush_raw_capture_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_row_,
                              this->primary_raw_last_ms_, false);
-    this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_row_,
-                             this->secondary_raw_last_ms_, false);
+    if (capture_secondary)
+      this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_row_,
+                               this->secondary_raw_last_ms_, false);
   }
 }
 
