@@ -1,4 +1,7 @@
 
+Messages from the washer model WF45R6100AP/US with PCB DC92-02395A use a different message format.
+It starts with 0x5A 0xA5 and has the same CRC at the end but it is 33 bytes in length on pin 1.  The explanation of some of the known bytes is below.
+
 If Tx is 0x01, then the xth lights from the bottom is lit.  T5 is hottest, T1 is coldest.
                        T5  T4  T3  T2  T1
 temeprature 1: 5AA5C018001E005C0000000001E680FF00800000000000FF00000000002300A907
