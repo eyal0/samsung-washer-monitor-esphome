@@ -151,7 +151,10 @@ int main(int argc, char **argv) {
   assert(washer_dc92_02395a_temperature(0, 1, 1, 1, 1) == 4);
   assert(washer_dc92_02395a_temperature(1, 1, 1, 1, 1) == 5);
   assert(washer_dc92_02395a_temperature(1, 0, 0, 0, 0) == -1); // Hot lit while cold is off.
-  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x81) == -1);
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x81) == 1); // High bit of byte 12 is not the LED.
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 1, 0x81) == 2);
+  assert(washer_dc92_02395a_temperature(1, 1, 1, 1, 0x81) == 5);
+  assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0x80) == 0);
   assert(std::string(washer_dc92_02395a_temperature_text(0)) == "No indicator");
   assert(std::string(washer_dc92_02395a_temperature_text(1)) == "Cold");
   assert(std::string(washer_dc92_02395a_temperature_text(3)) == "3");
@@ -169,6 +172,11 @@ int main(int argc, char **argv) {
       {"5AA5C018001E005C0100010001E680ED00800000000000FF000000000023007A99", 3, 2, 4, 3},
       {"5AA5C018001E015C0100010001ED80DB00800000000000FF000000000023006B95", 4, 2, 4, 3},
       {"5AA5C018011E015C0118010601E680BF00800000000000FF000000000023009B4F", 5, 2, 4, 3},
+      {"5AA5C018001F005F0018000681ED00EF00800000000000FF00000000002300B2FA", 1, 2, 5, 5},
+      {"5AA5C018001F005F0018010681ED00EF00800000000000FF00000000002300670C", 2, 2, 5, 5},
+      {"5AA5C018001F005F0118010681ED00EF00800000000000FF000000000023000207", 3, 2, 5, 5},
+      {"5AA5C018001F015F0118010681ED00EF00800000000000FF0000000000230047B3", 4, 2, 5, 5},
+      {"5AA5C018011F015F0118015B818600CF00800000000000FF000000000023006364", 5, 2, 5, 5},
       {"5AA5C000001E005C0100010001CF806D00800000000000FF00000000002300DBEA", 3, 0, 4, 3},
       {"5AA5C010001E005C0100010001E680DB00800000000000FF00000000002300EBBD", 3, 1, 4, 3},
       {"5AA5C018001E005C0100010001E680ED00800000000000FF000000000023007A99", 3, 2, 4, 3},
@@ -208,7 +216,7 @@ int main(int argc, char **argv) {
       });
     }
   }
-  assert(dc92_frames == 16);
+  assert(dc92_frames == 21);
   assert(old_frames == 0); // A 32-byte parser must not accept these frames.
   std::cout << found << " frames validated\n";
 }

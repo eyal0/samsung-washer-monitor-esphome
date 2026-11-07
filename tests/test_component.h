@@ -261,6 +261,13 @@ inline void run() {
   corrupt[12] ^= 1;
   feed(wf, wf_uart, corrupt);
   assert(wf_temperature.state == "3");
+  // Another cycle sets the high bit of byte 12. The low bit is still the cold LED.
+  const auto other_cycle_cold = wf_hex("5AA5C018001F005F0018000681ED00EF00800000000000FF00000000002300B2FA");
+  const auto other_cycle_2 = wf_hex("5AA5C018001F005F0018010681ED00EF00800000000000FF00000000002300670C");
+  feed(wf, wf_uart, other_cycle_cold);
+  assert(wf_temperature.state == "Cold" && wf_spin.state == "5" && wf_soil.state == "5");
+  feed(wf, wf_uart, other_cycle_2);
+  assert(wf_temperature.state == "2");
 
   std::puts("PASS: component runtime tests");
   std::exit(0);

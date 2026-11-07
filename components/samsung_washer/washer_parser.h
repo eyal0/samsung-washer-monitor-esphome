@@ -129,9 +129,11 @@ inline const char *washer_dc92_02395a_bar_text(int level) {
 }
 
 // DC92-02395A temperature LEDs, hottest first: frame bytes 4, 6, 8, 10 and 12.
-// A lit LED is 0x01. The bar fills from byte 12 (cold) toward byte 4 (hot).
+// A lit LED is the low bit, 0x01. The bar fills from byte 12 (cold) toward byte 4 (hot).
+// On some cycles byte 12 also has its high bit set; that bit is not a temperature LED.
 // All five off is no indicator, not the Cold setting.
 inline int washer_dc92_02395a_temperature(uint8_t t5, uint8_t t4, uint8_t t3, uint8_t t2, uint8_t t1) {
+  t1 &= 0x7f;
   const uint8_t lights[] = {t1, t2, t3, t4, t5};
   int level = 0;
   bool ended = false;
