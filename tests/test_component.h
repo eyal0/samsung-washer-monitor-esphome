@@ -220,7 +220,7 @@ inline void run() {
   TestUART wf_uart;
   SamsungWasherComponent wf;
   text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
-  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock;
+  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_steam;
   auto wf_hex = [](const char *hex) {
     std::vector<uint8_t> bytes;
     while (hex[0] != 0 && hex[1] != 0) {
@@ -244,6 +244,7 @@ inline void run() {
   wf.set_link_active_binary_sensor(&wf_link);
   wf.set_panel_on_binary_sensor(&wf_panel);
   wf.set_lock_indicator_binary_sensor(&wf_lock);
+  wf.set_steam_indicator_binary_sensor(&wf_steam);
   feed(wf, wf_uart, temperature_1);
   assert(!wf_temperature.has_state() && !wf_program.has_state());
   wf.set_model(WasherModel::DC92_02395A);
@@ -252,6 +253,7 @@ inline void run() {
   assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
   assert(wf_status.state == "Unknown" && wf_program.state == "Normal" && !wf_panel.has_state());
   assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
+  assert(wf_steam.has_state() && !wf_steam.state);
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
   feed(wf, wf_uart, soil_5);
@@ -288,6 +290,12 @@ inline void run() {
   assert(wf_lock.state);
   feed(wf, wf_uart, door_locked_copy);
   assert(wf_lock.state && wf_program.state == "Normal");
+  const auto steam_on = wf_hex("5AA5C018005E015C01180106018680CF00800000000000FF00000000002300E416");
+  const auto steam_off = wf_hex("5AA5C018001E015C0100010001ED80DB00800000000000FF000000000023006B95");
+  feed(wf, wf_uart, steam_on);
+  assert(wf_steam.state && wf_spin.state == "4" && wf_temperature.state == "4");
+  feed(wf, wf_uart, steam_off);
+  assert(wf_steam.has_state() && !wf_steam.state && wf_spin.state == "4");
   const struct {
     const char *hex;
     const char *program;
@@ -305,6 +313,7 @@ inline void run() {
   for (const auto &program : programs) {
     feed(wf, wf_uart, wf_hex(program.hex));
     assert(wf_program.state == program.program && wf_temperature.state == program.temperature);
+    assert(!wf_steam.state);
   }
 
   std::puts("PASS: component runtime tests");

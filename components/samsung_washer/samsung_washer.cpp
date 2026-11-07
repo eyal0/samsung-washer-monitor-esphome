@@ -284,6 +284,9 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
   // Bit 1 of byte 17 is the door lock. Bit 7 of that byte flips between frame copies.
   if (this->lock_indicator_binary_sensor_ != nullptr)
     this->lock_indicator_binary_sensor_->publish_state(p[17] & 0x02);
+  // Bit 6 of byte 5 is the steam light. The low 5 bits of that byte remain the spin bar.
+  if (this->steam_indicator_binary_sensor_ != nullptr)
+    this->steam_indicator_binary_sensor_->publish_state(p[5] & 0x40);
 }
 
 void SamsungWasherComponent::dump_config() {
@@ -302,6 +305,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Bubble Soak Indicator", this->bubble_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Easy Iron Indicator", this->iron_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Door Lock Indicator", this->lock_indicator_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Steam Indicator", this->steam_indicator_binary_sensor_);
   LOG_SWITCH("  ", "UART Raw Capture", this->raw_capture_switch_);
 }
 
