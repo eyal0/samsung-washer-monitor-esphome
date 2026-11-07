@@ -144,6 +144,11 @@ int main(int argc, char **argv) {
   assert(std::string(washer_dc92_02395a_bar_text(0)) == "0");
   assert(std::string(washer_dc92_02395a_bar_text(5)) == "5");
   assert(std::string(washer_dc92_02395a_bar_text(-1)) == "Unknown");
+  assert(std::string(washer_dc92_02395a_spin_text(0)) == "0");
+  assert(std::string(washer_dc92_02395a_spin_text(1)) == "No Spin");
+  assert(std::string(washer_dc92_02395a_spin_text(4)) == "4");
+  assert(std::string(washer_dc92_02395a_spin_text(5)) == "High");
+  assert(std::string(washer_dc92_02395a_spin_text(-1)) == "Unknown");
   assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 0) == 0);
   assert(washer_dc92_02395a_temperature(0, 0, 0, 0, 1) == 1);
   assert(washer_dc92_02395a_temperature(0, 0, 0, 1, 1) == 2);

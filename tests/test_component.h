@@ -253,7 +253,7 @@ inline void run() {
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
   feed(wf, wf_uart, soil_5);
-  assert(wf_spin.state == "5" && wf_soil.state == "5" && wf_rinse.state == "1");
+  assert(wf_spin.state == "High" && wf_soil.state == "5" && wf_rinse.state == "1");
   assert(wf_display.state == "1:39");
   feed(wf, wf_uart, frame(true)); // Original 32-byte Cotton frame is the wrong length.
   assert(wf_temperature.state == "3" && wf_program.has_state() == false);
@@ -267,7 +267,7 @@ inline void run() {
   const auto other_cycle_cold = wf_hex("5AA5C018001F005F0018000681ED00EF00800000000000FF00000000002300B2FA");
   const auto other_cycle_2 = wf_hex("5AA5C018001F005F0018010681ED00EF00800000000000FF00000000002300670C");
   feed(wf, wf_uart, other_cycle_cold);
-  assert(wf_temperature.state == "Cold" && wf_spin.state == "5" && wf_soil.state == "5");
+  assert(wf_temperature.state == "Cold" && wf_spin.state == "High" && wf_soil.state == "5");
   feed(wf, wf_uart, other_cycle_2);
   assert(wf_temperature.state == "2" && wf_display.state == "1:59");
   const auto minutes_41 = wf_hex("5AA5C018001E005C0000000001E6808600830000000000FF000000000023007433");
