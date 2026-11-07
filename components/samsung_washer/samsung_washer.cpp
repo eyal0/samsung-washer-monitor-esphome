@@ -267,7 +267,7 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
                washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[3])));
   publish_text(this->spin_selection_text_sensor_,
                washer_dc92_02395a_spin_text(washer_dc92_02395a_bar_level(p[5])));
-  publish_text(this->soil_selection_text_sensor_, washer_dc92_02395a_bar_text(washer_dc92_02395a_bar_level(p[7])));
+  publish_text(this->soil_selection_text_sensor_, washer_dc92_02395a_soil_text(washer_dc92_02395a_bar_level(p[7])));
 
   const int minutes = washer_dc92_02395a_time_minutes(p[11], p[13], p[15]);
   char display[32];
