@@ -259,7 +259,7 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
 }
 
 void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
-  // Cycle, program, and the indicator lamps are not decoded on this board.
+  // Cycle, program, panel, and the other indicator lamps are not decoded on this board.
   publish_text(this->cycle_status_text_sensor_, "Unknown");
   const int temperature = washer_dc92_02395a_temperature(p[4], p[6], p[8], p[10], p[12]);
   publish_text(this->temperature_selection_text_sensor_, washer_dc92_02395a_temperature_text(temperature));
@@ -276,6 +276,10 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
   else
     snprintf(display, sizeof(display), "Unknown / non-time display");
   publish_text(this->displayed_time_text_sensor_, display);
+
+  // Bit 1 of byte 17 is the door lock. Bit 7 of that byte flips between frame copies.
+  if (this->lock_indicator_binary_sensor_ != nullptr)
+    this->lock_indicator_binary_sensor_->publish_state(p[17] & 0x02);
 }
 
 void SamsungWasherComponent::dump_config() {

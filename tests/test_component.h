@@ -220,7 +220,7 @@ inline void run() {
   TestUART wf_uart;
   SamsungWasherComponent wf;
   text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
-  binary_sensor::BinarySensor wf_link, wf_panel;
+  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock;
   auto wf_hex = [](const char *hex) {
     std::vector<uint8_t> bytes;
     while (hex[0] != 0 && hex[1] != 0) {
@@ -243,6 +243,7 @@ inline void run() {
   wf.set_displayed_time_text_sensor(&wf_display);
   wf.set_link_active_binary_sensor(&wf_link);
   wf.set_panel_on_binary_sensor(&wf_panel);
+  wf.set_lock_indicator_binary_sensor(&wf_lock);
   feed(wf, wf_uart, temperature_1);
   assert(!wf_temperature.has_state() && !wf_program.has_state());
   wf.set_model(WasherModel::DC92_02395A);
@@ -250,6 +251,7 @@ inline void run() {
   assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
   assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
   assert(wf_status.state == "Unknown" && !wf_program.has_state() && !wf_panel.has_state());
+  assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
   feed(wf, wf_uart, soil_5);
@@ -273,9 +275,18 @@ inline void run() {
   const auto minutes_41 = wf_hex("5AA5C018001E005C0000000001E6808600830000000000FF000000000023007433");
   const auto minutes_37 = wf_hex("5AA5C018001E001C00000000014F00A700820000000000FF000000000023001399");
   feed(wf, wf_uart, minutes_41);
-  assert(wf_display.state == "0:41");
+  assert(wf_display.state == "0:41" && wf_lock.state);
   feed(wf, wf_uart, minutes_37);
-  assert(wf_display.state == "0:37");
+  assert(wf_display.state == "0:37" && wf_lock.state);
+  const auto door_locked = wf_hex("5AA5C00000000000000000000000003F00020000000000FF00000000002300BE14");
+  const auto door_unlocked = wf_hex("5AA5C00000000000000000000000003F00000000000000FF0000000000230048D6");
+  const auto door_locked_copy = wf_hex("5AA5C000001E005C000000000000800600820000000000FF000000000023006D04");
+  feed(wf, wf_uart, door_unlocked);
+  assert(wf_lock.has_state() && !wf_lock.state);
+  feed(wf, wf_uart, door_locked);
+  assert(wf_lock.state);
+  feed(wf, wf_uart, door_locked_copy);
+  assert(wf_lock.state);
 
   std::puts("PASS: component runtime tests");
   std::exit(0);
