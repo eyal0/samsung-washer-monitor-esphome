@@ -115,6 +115,7 @@ void SamsungWasherComponent::reset_tracking_() {
   this->blank_pending_ = false;
   this->panel_on_known_ = false;
   this->cycle_tracker_.reset();
+  this->dc92_cycle_tracker_.reset();
   if (this->panel_on_binary_sensor_ != nullptr && this->panel_on_binary_sensor_->has_state())
     this->panel_on_binary_sensor_->invalidate_state();
 }
@@ -259,8 +260,10 @@ void SamsungWasherComponent::handle_primary_frame_(const std::vector<uint8_t> &p
 }
 
 void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t> &p) {
-  // Cycle, panel, and the other indicator lamps are not decoded on this board.
-  publish_text(this->cycle_status_text_sensor_, "Unknown");
+  // Bit 6 of byte 7 is the status light. Blank frames with byte 29 of 0x03 or
+  // 0x23 are the captured Off and Completed messages.
+  this->dc92_cycle_tracker_.feed(p[7] & 0x40, washer_dc92_02395a_panel_blank(p.data()), p[29], millis());
+  publish_text(this->cycle_status_text_sensor_, this->dc92_cycle_tracker_.status());
   // A dark program light is the blink while running, so it leaves the current program in place.
   const char *program = washer_dc92_02395a_program(p[6], p[8], p[10], p[12], p[14]);
   if (program != nullptr)

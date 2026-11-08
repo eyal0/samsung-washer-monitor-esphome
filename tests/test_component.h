@@ -255,7 +255,7 @@ inline void run() {
   feed(wf, wf_uart, temperature_1);
   assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
   assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
-  assert(wf_status.state == "Unknown" && wf_program.state == "Normal" && !wf_panel.has_state());
+  assert(wf_status.state == "Paused" && wf_program.state == "Normal" && !wf_panel.has_state());
   assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
   assert(wf_child_lock.has_state() && !wf_child_lock.state);
   assert(wf_steam.has_state() && !wf_steam.state);
@@ -352,6 +352,30 @@ inline void run() {
     assert(!wf_steam.state && !wf_pre_soak.state && !wf_delay.state && wf_alarm.state);
     assert(!wf_child_lock.state);
   }
+  const auto spin_lit = wf_hex("5AA5C000001E0040000000000006800600800000000000FF00000000002300AF44");
+  const auto spin_dark = wf_hex("5AA5C000001E0000000000000006000600000000000000FF00000000002300195F");
+  const auto completed = wf_hex("5AA5C00000000000000000000000000000000000000000FF0000000000230054D2");
+  const auto powered_off = wf_hex("5AA5C00000000000000000000000000000000000000000FF000000000003005234");
+  feed(wf, wf_uart, powered_off);
+  assert(wf_status.state == "Off");
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_status.state == "Paused");
+  feed(wf, wf_uart, spin_dark);
+  assert(wf_status.state == "Running");
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Running");
+  delay(2100);
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Paused");
+  feed(wf, wf_uart, completed);
+  assert(wf_status.state == "Completed");
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Paused");
+  delay(5100);
+  wf.update();
+  assert(!wf_link.state && wf_status.state == "Unknown");
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_status.state == "Paused");
 
   std::puts("PASS: component runtime tests");
   std::exit(0);

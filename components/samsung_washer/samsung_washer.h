@@ -78,6 +78,7 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
   WasherParser primary_parser_{32};
   WasherParser secondary_parser_{30};
   WasherCycleStatus cycle_tracker_{};
+  WasherDc92CycleStatus dc92_cycle_tracker_{};
 
   uint32_t last_primary_ms_{0};
   uint32_t blank_since_ms_{0};

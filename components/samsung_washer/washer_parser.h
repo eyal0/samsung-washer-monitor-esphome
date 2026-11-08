@@ -92,6 +92,59 @@ class WasherCycleStatus {
   const char *state_ = "Unknown";
 };
 
+// DC92-02395A has no cycle event byte. Bit 6 of byte 7 blinks while running and
+// holds steady while the machine is on. A steady light is Paused, including
+// before a cycle has started. Off and Completed are the captured blank frames:
+// byte 29 is 0x03 for Off and 0x23 for Completed. A blink that then holds still
+// for two seconds is Paused again. Unknown is reserved for no current frame.
+class WasherDc92CycleStatus {
+ public:
+  static constexpr uint32_t kSteadyMs = 2000;
+  void reset() { *this = WasherDc92CycleStatus(); }
+  const char *status() const { return state_; }
+  void feed(bool status_lit, bool panel_blank, uint8_t power, uint32_t now) {
+    if (panel_blank && (power == 0x03 || power == 0x23)) {
+      state_ = power == 0x03 ? "Off" : "Completed";
+      seen_ = false;
+      running_ = false;
+      return;
+    }
+    if (!seen_) {
+      seen_ = true;
+      lit_ = status_lit;
+      changed_ms_ = now;
+      running_ = false;
+      state_ = "Paused";
+      return;
+    }
+    if (status_lit != lit_) {
+      lit_ = status_lit;
+      changed_ms_ = now;
+      running_ = true;
+      state_ = "Running";
+      return;
+    }
+    if (running_ && now - changed_ms_ >= kSteadyMs) {
+      running_ = false;
+      state_ = "Paused";
+    }
+  }
+ private:
+  bool seen_ = false;
+  bool lit_ = false;
+  bool running_ = false;
+  uint32_t changed_ms_ = 0;
+  const char *state_ = "Unknown";
+};
+
+// Bytes 3 through 22 hold the panel lights and digits. Both captured
+// Off and Completed frames leave that range clear.
+inline bool washer_dc92_02395a_panel_blank(const uint8_t *frame) {
+  for (int i = 3; i <= 22; ++i)
+    if (frame[i] != 0) return false;
+  return true;
+}
+
 inline const char *washer_option(uint8_t indicators) {
   switch (indicators & 0x0c) {
     case 0x04: return "Prewash";
@@ -103,7 +156,7 @@ inline const char *washer_option(uint8_t indicators) {
 
 // DC92-02395A rinse (byte 3), spin (byte 5) and soil (byte 7). The low 5 bits
 // fill from bit 4 downward: 0x00, 0x10, 0x18, 0x1C, 0x1E, 0x1F are levels 0 to 5.
-// Higher bits, such as the 0x40 always set in the soil captures, are ignored.
+// Bit 5 is the sound-off LED and bit 6 is the status light. The bar ignores both.
 inline int washer_dc92_02395a_bar_level(uint8_t value) {
   switch (value & 0x1f) {
     case 0x00: return 0;

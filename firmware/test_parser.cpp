@@ -124,6 +124,38 @@ int main(int argc, char **argv) {
   expect(0x0e, false, "Completed"); // Can observe a finish after a reboot.
   cycle.reset(); // UART loss must also forget completion.
   expect(0, true, "Unknown");
+  WasherDc92CycleStatus dc92_cycle;
+  assert(std::string(dc92_cycle.status()) == "Unknown");
+  dc92_cycle.feed(true, false, 0x23, 0);
+  assert(std::string(dc92_cycle.status()) == "Paused"); // Steady light before a blink.
+  dc92_cycle.feed(true, false, 0x23, WasherDc92CycleStatus::kSteadyMs - 1);
+  assert(std::string(dc92_cycle.status()) == "Paused");
+  dc92_cycle.feed(false, false, 0x23, WasherDc92CycleStatus::kSteadyMs);
+  assert(std::string(dc92_cycle.status()) == "Running");
+  dc92_cycle.feed(true, false, 0x23, 2500);
+  assert(std::string(dc92_cycle.status()) == "Running");
+  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc92CycleStatus::kSteadyMs - 1);
+  assert(std::string(dc92_cycle.status()) == "Running"); // The held half of a blink.
+  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc92CycleStatus::kSteadyMs);
+  assert(std::string(dc92_cycle.status()) == "Paused");
+  dc92_cycle.feed(false, false, 0x23, 5000);
+  assert(std::string(dc92_cycle.status()) == "Running");
+  for (int i = 0; i < 10; ++i) {
+    dc92_cycle.feed(i % 2 == 0, false, 0x23, 5000 + (i + 1) * 500);
+    assert(std::string(dc92_cycle.status()) == "Running");
+  }
+  dc92_cycle.feed(true, true, 0x23, 12000); // Captured Completed frame.
+  assert(std::string(dc92_cycle.status()) == "Completed");
+  dc92_cycle.feed(true, false, 0x23, 12001);
+  assert(std::string(dc92_cycle.status()) == "Paused"); // Completion does not latch through the next panel.
+  dc92_cycle.feed(false, true, 0x03, 13000);
+  assert(std::string(dc92_cycle.status()) == "Off");
+  dc92_cycle.feed(true, false, 0x03, 13001); // 0x03 only counts on a blank panel.
+  assert(std::string(dc92_cycle.status()) == "Paused");
+  dc92_cycle.feed(true, true, 0x00, 14000); // Blank, but not a captured Off or Completed frame.
+  assert(std::string(dc92_cycle.status()) == "Paused");
+  dc92_cycle.reset();
+  assert(std::string(dc92_cycle.status()) == "Unknown");
   assert(std::string(washer_option(0x00)) == "None");
   assert(std::string(washer_option(0x08)) == "Intensive");
   assert(std::string(washer_option(0x04)) == "Prewash");
@@ -250,6 +282,12 @@ int main(int argc, char **argv) {
     }
     return bytes;
   };
+  const auto completed = decode_hex("5AA5C00000000000000000000000000000000000000000FF0000000000230054D2");
+  const auto powered_off = decode_hex("5AA5C00000000000000000000000000000000000000000FF000000000003005234");
+  const auto spin_lit = decode_hex("5AA5C000001E0040000000000006800600800000000000FF00000000002300AF44");
+  assert(washer_dc92_02395a_panel_blank(completed.data()) && completed[29] == 0x23);
+  assert(washer_dc92_02395a_panel_blank(powered_off.data()) && powered_off[29] == 0x03);
+  assert(!washer_dc92_02395a_panel_blank(spin_lit.data()) && (spin_lit[7] & 0x40));
   WasherParser dc92_parser(33);
   WasherParser old_parser(32);
   int dc92_frames = 0;
