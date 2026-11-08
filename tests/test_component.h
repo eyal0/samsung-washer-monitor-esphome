@@ -220,7 +220,7 @@ inline void run() {
   TestUART wf_uart;
   SamsungWasherComponent wf;
   text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
-  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_steam, wf_pre_soak, wf_delay, wf_alarm;
+  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_child_lock, wf_steam, wf_pre_soak, wf_delay, wf_alarm;
   auto wf_hex = [](const char *hex) {
     std::vector<uint8_t> bytes;
     while (hex[0] != 0 && hex[1] != 0) {
@@ -244,6 +244,7 @@ inline void run() {
   wf.set_link_active_binary_sensor(&wf_link);
   wf.set_panel_on_binary_sensor(&wf_panel);
   wf.set_lock_indicator_binary_sensor(&wf_lock);
+  wf.set_child_lock_indicator_binary_sensor(&wf_child_lock);
   wf.set_steam_indicator_binary_sensor(&wf_steam);
   wf.set_pre_soak_indicator_binary_sensor(&wf_pre_soak);
   wf.set_delay_indicator_binary_sensor(&wf_delay);
@@ -256,6 +257,7 @@ inline void run() {
   assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
   assert(wf_status.state == "Unknown" && wf_program.state == "Normal" && !wf_panel.has_state());
   assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
+  assert(wf_child_lock.has_state() && !wf_child_lock.state);
   assert(wf_steam.has_state() && !wf_steam.state);
   assert(wf_pre_soak.has_state() && !wf_pre_soak.state);
   assert(wf_delay.has_state() && !wf_delay.state);
@@ -293,7 +295,7 @@ inline void run() {
   feed(wf, wf_uart, door_unlocked);
   assert(wf_lock.has_state() && !wf_lock.state);
   feed(wf, wf_uart, door_locked);
-  assert(wf_lock.state);
+  assert(wf_lock.state && !wf_child_lock.state);
   feed(wf, wf_uart, door_locked_copy);
   assert(wf_lock.state && wf_program.state == "Normal");
   const auto steam_on = wf_hex("5AA5C018005E015C01180106018680CF00800000000000FF00000000002300E416");
@@ -324,6 +326,12 @@ inline void run() {
   assert(wf_alarm.has_state() && !wf_alarm.state && wf_soil.state == "3");
   feed(wf, wf_uart, no_delay); // Same frame as alarm on: the sound-off LED is dark.
   assert(wf_alarm.state && wf_soil.state == "3");
+  const auto child_lock_on = wf_hex("5AA5C018011E015C0118010601E680BF00880000000000FF000000000023007024");
+  const auto child_lock_off = wf_hex("5AA5C018011E015C0118010601E680BF00800000000000FF000000000023009B4F");
+  feed(wf, wf_uart, child_lock_on);
+  assert(wf_child_lock.state && !wf_lock.state && wf_temperature.state == "Hot");
+  feed(wf, wf_uart, child_lock_off);
+  assert(wf_child_lock.has_state() && !wf_child_lock.state && !wf_lock.state);
   const struct {
     const char *hex;
     const char *program;
@@ -342,6 +350,7 @@ inline void run() {
     feed(wf, wf_uart, wf_hex(program.hex));
     assert(wf_program.state == program.program && wf_temperature.state == program.temperature);
     assert(!wf_steam.state && !wf_pre_soak.state && !wf_delay.state && wf_alarm.state);
+    assert(!wf_child_lock.state);
   }
 
   std::puts("PASS: component runtime tests");

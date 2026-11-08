@@ -284,9 +284,11 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
     snprintf(display, sizeof(display), "Unknown / non-time display");
   publish_text(this->displayed_time_text_sensor_, display);
 
-  // Bit 1 of byte 17 is the door lock. Bit 7 of that byte flips between frame copies.
+  // Bit 1 of byte 17 is the door lock. Bit 3 is the child lock. Bit 7 flips between frame copies.
   if (this->lock_indicator_binary_sensor_ != nullptr)
     this->lock_indicator_binary_sensor_->publish_state(p[17] & 0x02);
+  if (this->child_lock_indicator_binary_sensor_ != nullptr)
+    this->child_lock_indicator_binary_sensor_->publish_state(p[17] & 0x08);
   // Bit 6 of byte 5 is the steam light. The low 5 bits of that byte remain the spin bar.
   if (this->steam_indicator_binary_sensor_ != nullptr)
     this->steam_indicator_binary_sensor_->publish_state(p[5] & 0x40);
@@ -317,6 +319,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Bubble Soak Indicator", this->bubble_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Easy Iron Indicator", this->iron_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Door Lock Indicator", this->lock_indicator_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Child Lock Indicator", this->child_lock_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Steam Indicator", this->steam_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Pre Soak Indicator", this->pre_soak_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Delay Indicator", this->delay_indicator_binary_sensor_);

@@ -47,6 +47,7 @@ CONF_UART_LINK_ACTIVE = "uart_link_active"
 CONF_BUBBLE_SOAK_INDICATOR = "bubble_soak_indicator"
 CONF_EASY_IRON_INDICATOR = "easy_iron_indicator"
 CONF_DOOR_LOCK_INDICATOR = "door_lock_indicator"
+CONF_CHILD_LOCK_INDICATOR = "child_lock_indicator"
 CONF_STEAM_INDICATOR = "steam_indicator"
 CONF_PRE_SOAK_INDICATOR = "pre_soak_indicator"
 CONF_DELAY_INDICATOR = "delay_indicator"
@@ -71,6 +72,7 @@ BINARY_SENSORS = (
     (CONF_BUBBLE_SOAK_INDICATOR, "set_bubble_indicator_binary_sensor"),
     (CONF_EASY_IRON_INDICATOR, "set_iron_indicator_binary_sensor"),
     (CONF_DOOR_LOCK_INDICATOR, "set_lock_indicator_binary_sensor"),
+    (CONF_CHILD_LOCK_INDICATOR, "set_child_lock_indicator_binary_sensor"),
     (CONF_STEAM_INDICATOR, "set_steam_indicator_binary_sensor"),
     (CONF_PRE_SOAK_INDICATOR, "set_pre_soak_indicator_binary_sensor"),
     (CONF_DELAY_INDICATOR, "set_delay_indicator_binary_sensor"),
@@ -125,6 +127,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DOOR_LOCK_INDICATOR): binary_sensor.binary_sensor_schema(
                 icon="mdi:lock",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_CHILD_LOCK_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:account-lock"
             ),
             cv.Optional(CONF_STEAM_INDICATOR): binary_sensor.binary_sensor_schema(
                 icon="mdi:kettle-steam"
