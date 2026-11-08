@@ -57,6 +57,7 @@ class SamsungWasherComponent final : public PollingComponent, public uart::UARTD
   SUB_BINARY_SENSOR(iron_indicator)
   SUB_BINARY_SENSOR(lock_indicator)
   SUB_BINARY_SENSOR(steam_indicator)
+  SUB_BINARY_SENSOR(pre_soak_indicator)
 
  protected:
   void reset_tracking_();

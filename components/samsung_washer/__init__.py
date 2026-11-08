@@ -48,6 +48,7 @@ CONF_BUBBLE_SOAK_INDICATOR = "bubble_soak_indicator"
 CONF_EASY_IRON_INDICATOR = "easy_iron_indicator"
 CONF_DOOR_LOCK_INDICATOR = "door_lock_indicator"
 CONF_STEAM_INDICATOR = "steam_indicator"
+CONF_PRE_SOAK_INDICATOR = "pre_soak_indicator"
 
 CONF_UART_RAW_CAPTURE = "uart_raw_capture"
 
@@ -69,6 +70,7 @@ BINARY_SENSORS = (
     (CONF_EASY_IRON_INDICATOR, "set_iron_indicator_binary_sensor"),
     (CONF_DOOR_LOCK_INDICATOR, "set_lock_indicator_binary_sensor"),
     (CONF_STEAM_INDICATOR, "set_steam_indicator_binary_sensor"),
+    (CONF_PRE_SOAK_INDICATOR, "set_pre_soak_indicator_binary_sensor"),
 )
 
 CONFIG_SCHEMA = (
@@ -122,6 +124,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_STEAM_INDICATOR): binary_sensor.binary_sensor_schema(
                 icon="mdi:kettle-steam"
+            ),
+            cv.Optional(CONF_PRE_SOAK_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:basket"
             ),
             cv.Optional(CONF_UART_RAW_CAPTURE): switch.switch_schema(
                 SamsungWasherRawCaptureSwitch,

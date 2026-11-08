@@ -287,6 +287,9 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
   // Bit 6 of byte 5 is the steam light. The low 5 bits of that byte remain the spin bar.
   if (this->steam_indicator_binary_sensor_ != nullptr)
     this->steam_indicator_binary_sensor_->publish_state(p[5] & 0x40);
+  // Bit 5 of byte 3 is the Pre Soak light. The low 5 bits of that byte remain the rinse bar.
+  if (this->pre_soak_indicator_binary_sensor_ != nullptr)
+    this->pre_soak_indicator_binary_sensor_->publish_state(p[3] & 0x20);
 }
 
 void SamsungWasherComponent::dump_config() {
@@ -306,6 +309,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Easy Iron Indicator", this->iron_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Door Lock Indicator", this->lock_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Steam Indicator", this->steam_indicator_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Pre Soak Indicator", this->pre_soak_indicator_binary_sensor_);
   LOG_SWITCH("  ", "UART Raw Capture", this->raw_capture_switch_);
 }
 
