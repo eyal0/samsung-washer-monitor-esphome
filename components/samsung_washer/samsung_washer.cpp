@@ -32,45 +32,14 @@ void SamsungWasherRawCaptureSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<uint8_t> &buf,
-                                                std::vector<uint8_t> &last_row, uint32_t last_byte_ms, bool force) {
+void SamsungWasherComponent::flush_raw_capture_(const char *label, std::vector<uint8_t> &buf, uint32_t last_byte_ms,
+                                                bool force) {
   if (buf.empty())
     return;
-  if (!force && (millis() - last_byte_ms) < 50)
+  if (!force && buf.size() < 64 && (millis() - last_byte_ms) < 50)
     return;
-  if (buf.size() < 2 || buf[0] != 0x5a || buf[1] != 0xa5) {
-    buf.clear();
-    return;
-  }
-  if (this->model_ == WasherModel::DC92_02395A) {
-    // Pin 1 only, and only a full frame whose speaker byte is quiet.
-    if (buf.size() != 33 || buf[24] != 0x00) {
-      buf.clear();
-      return;
-    }
-  } else if (buf.size() > 33) {
-    buf.resize(33);
-  }
-  if (buf != last_row) {
-    char hex[format_hex_size(33)];
-    ESP_LOGI(RAW_TAG, "%s %" PRIu32 " %s", label, millis(), format_hex_pretty_to(hex, buf.data(), buf.size(), '\0'));
-  }
-  last_row.swap(buf);
+  ESP_LOGI(RAW_TAG, "%s %" PRIu32 " %s", label, millis(), format_hex_pretty(buf.data(), buf.size()).c_str());
   buf.clear();
-}
-
-void SamsungWasherComponent::capture_raw_byte_(const char *label, std::vector<uint8_t> &buf,
-                                               std::vector<uint8_t> &last_row, uint32_t &last_byte_ms, uint8_t byte) {
-  // A 5A A5 header starts a new row; the cap bounds rows when no header arrives.
-  if (byte == 0xa5 && buf.size() > 1 && buf.back() == 0x5a) {
-    buf.pop_back();
-    this->flush_raw_capture_(label, buf, last_row, last_byte_ms, true);
-    buf.push_back(0x5a);
-  } else if (buf.size() >= 64) {
-    this->flush_raw_capture_(label, buf, last_row, last_byte_ms, true);
-  }
-  buf.push_back(byte);
-  last_byte_ms = millis();
 }
 
 void SamsungWasherComponent::loop() {
@@ -78,36 +47,38 @@ void SamsungWasherComponent::loop() {
   if (!raw_capture) {
     this->primary_raw_buf_.clear();
     this->secondary_raw_buf_.clear();
-    this->primary_raw_last_row_.clear();
-    this->secondary_raw_last_row_.clear();
   }
 
   uint8_t byte = 0;
   int budget = 64;
   while (budget-- > 0 && this->available() && this->read_byte(&byte)) {
-    if (raw_capture)
-      this->capture_raw_byte_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_row_,
-                              this->primary_raw_last_ms_, byte);
+    if (raw_capture) {
+      this->primary_raw_buf_.push_back(byte);
+      this->primary_raw_last_ms_ = millis();
+      if (this->primary_raw_buf_.size() >= 64) {
+        this->flush_raw_capture_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_ms_, true);
+      }
+    }
     this->primary_parser_.feed(byte, [this](const std::vector<uint8_t> &p) { this->handle_primary_frame_(p); });
   }
 
-  const bool capture_secondary = raw_capture && this->model_ != WasherModel::DC92_02395A;
   if (this->secondary_uart_ != nullptr) {
     int sec_budget = 64;
     while (sec_budget-- > 0 && this->secondary_uart_->available() && this->secondary_uart_->read_byte(&byte)) {
-      if (capture_secondary)
-        this->capture_raw_byte_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_row_,
-                                this->secondary_raw_last_ms_, byte);
+      if (raw_capture) {
+        this->secondary_raw_buf_.push_back(byte);
+        this->secondary_raw_last_ms_ = millis();
+        if (this->secondary_raw_buf_.size() >= 64) {
+          this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_ms_, true);
+        }
+      }
       this->secondary_parser_.feed(byte, [](const std::vector<uint8_t> &) {});
     }
   }
 
   if (raw_capture) {
-    this->flush_raw_capture_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_row_,
-                             this->primary_raw_last_ms_, false);
-    if (capture_secondary)
-      this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_row_,
-                               this->secondary_raw_last_ms_, false);
+    this->flush_raw_capture_("CN803 pin 1", this->primary_raw_buf_, this->primary_raw_last_ms_, false);
+    this->flush_raw_capture_("CN803 pin 2", this->secondary_raw_buf_, this->secondary_raw_last_ms_, false);
   }
 }
 

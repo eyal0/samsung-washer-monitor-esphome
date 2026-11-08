@@ -147,7 +147,7 @@ CONFIG_SCHEMA = (
                 SamsungWasherRawCaptureSwitch,
                 icon="mdi:code-braces",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                default_restore_mode="ALWAYS_ON",
+                default_restore_mode="ALWAYS_OFF",
             ).extend(cv.COMPONENT_SCHEMA),
         }
     )
@@ -155,17 +155,18 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
-_PRIMARY_UART_VALIDATE = uart.final_validate_device_schema(
-    "samsung_washer",
-    uart_bus=CONF_UART_ID,
-    require_rx=True,
-)
 
-_SECONDARY_UART_VALIDATE = uart.final_validate_device_schema(
-    "samsung_washer",
-    uart_bus=CONF_SECONDARY_UART_ID,
-    require_rx=True,
-)
+def _validate_uart_bus(config: ConfigType, uart_bus: str) -> None:
+    baud_rate = 38400 if config[CONF_MODEL] == "DC92-02395A" else 9600
+    uart.final_validate_device_schema(
+        "samsung_washer",
+        uart_bus=uart_bus,
+        baud_rate=baud_rate,
+        require_rx=True,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )(config)
 
 
 def _validate_uart_debug(config: ConfigType) -> ConfigType:
@@ -178,9 +179,9 @@ def _validate_uart_debug(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    _PRIMARY_UART_VALIDATE(config)
+    _validate_uart_bus(config, CONF_UART_ID)
     if CONF_SECONDARY_UART_ID in config:
-        _SECONDARY_UART_VALIDATE(config)
+        _validate_uart_bus(config, CONF_SECONDARY_UART_ID)
     cv.Schema(
         {
             cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(_validate_uart_debug),

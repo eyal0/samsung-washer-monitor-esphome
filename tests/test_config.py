@@ -92,29 +92,20 @@ class ConfigTest(unittest.TestCase):
 
         self.assertEqual(without_network("washer.yaml"), without_network("washer-thread.yaml"))
 
-    def test_uart_format_is_not_restricted(self):
+    def test_invalid_uart_settings(self):
         for index in (0, 1):
-            for setting, replacement in (
-                ("baud_rate: 9600", "baud_rate: 115200"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    parity: EVEN"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    data_bits: 7"),
-                ("baud_rate: 9600", "baud_rate: 9600\n    stop_bits: 2"),
+            for setting, replacement, message in (
+                ("baud_rate: 9600", "baud_rate: 115200", "requires baud rate 9600"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    parity: EVEN", "requires parity NONE"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    data_bits: 7", "requires 8 data bits"),
+                ("baud_rate: 9600", "baud_rate: 9600\n    stop_bits: 2", "requires 1 stop bits"),
+                (f"rx_pin: GPIO{index + 1}", f"tx_pin: GPIO{index + 1}", "declare a rx_pin"),
             ):
                 with self.subTest(uart=index, replacement=replacement):
                     marker = f"  - id: {'primary' if index == 0 else 'secondary'}"
                     before, bus = BASE.split(marker, 1)
                     config = before + marker + bus.replace(setting, replacement, 1)
-                    self.validate(config, True)
-
-    def test_uart_requires_rx_pin(self):
-        for index in (0, 1):
-            with self.subTest(uart=index):
-                marker = f"  - id: {'primary' if index == 0 else 'secondary'}"
-                before, bus = BASE.split(marker, 1)
-                config = before + marker + bus.replace(
-                    f"rx_pin: GPIO{index + 1}", f"tx_pin: GPIO{index + 1}", 1
-                )
-                self.validate(config, False, "declare a rx_pin")
+                    self.validate(config, False, message)
 
     def test_uart_ownership(self):
         self.validate(BASE.replace("secondary_uart_id: secondary", "secondary_uart_id: primary"), False, "used both")
@@ -124,15 +115,18 @@ class ConfigTest(unittest.TestCase):
         ), False, "used both")
 
     def test_model_selects_pcb(self):
-        self.validate(BASE.replace(
+        new_board = BASE.replace("baud_rate: 9600", "baud_rate: 38400").replace(
             "  uart_id: primary\n", "  model: dc92-02395a\n  uart_id: primary\n"
-        ), True)
-        self.validate(BASE.replace(
-            "  uart_id: primary\n", "  model: dc92_02395a\n  uart_id: primary\n"
-        ), True)
+        )
+        self.validate(new_board, True)
+        self.validate(new_board.replace("model: dc92-02395a", "model: dc92_02395a"), True)
         self.validate(BASE.replace(
             "  uart_id: primary\n", "  model: not-a-board\n  uart_id: primary\n"
         ), False, "Unknown value")
+        self.validate(BASE.replace(
+            "  uart_id: primary\n", "  model: dc92-02395a\n  uart_id: primary\n"
+        ), False, "requires baud rate 38400")
+        self.validate(BASE.replace("baud_rate: 9600", "baud_rate: 38400"), False, "requires baud rate 9600")
 
     def test_dummy_receiver_rejected(self):
         for pin in (1, 2):
