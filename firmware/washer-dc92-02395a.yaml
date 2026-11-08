@@ -1,6 +1,6 @@
 # Samsung WF45R6100AP/US with the DC92-02395A control board.
 # For the DC92-01950B board (WW11BGA046), use washer.yaml instead.
-# Pin 1 frames are 33 bytes. Temperature, rinse, spin, soil, displayed time, the door lock, steam, Pre Soak, delay and the program are decoded.
+# Pin 1 frames are 33 bytes. Temperature, rinse, spin, soil, displayed time, the door lock, steam, Pre Soak, delay, alarm and the program are decoded.
 # Cycle status and the other lamp indicators are not.
 substitutions:
   cn803_pin2_rx_pin: GPIO2
@@ -68,6 +68,8 @@ samsung_washer:
     name: Pre Soak indicator
   delay_indicator:
     name: Delay indicator
+  alarm:
+    name: Alarm
   uart_link_active:
     name: UART link active
   uart_raw_capture:

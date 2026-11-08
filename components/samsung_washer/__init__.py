@@ -50,6 +50,7 @@ CONF_DOOR_LOCK_INDICATOR = "door_lock_indicator"
 CONF_STEAM_INDICATOR = "steam_indicator"
 CONF_PRE_SOAK_INDICATOR = "pre_soak_indicator"
 CONF_DELAY_INDICATOR = "delay_indicator"
+CONF_ALARM = "alarm"
 
 CONF_UART_RAW_CAPTURE = "uart_raw_capture"
 
@@ -73,6 +74,7 @@ BINARY_SENSORS = (
     (CONF_STEAM_INDICATOR, "set_steam_indicator_binary_sensor"),
     (CONF_PRE_SOAK_INDICATOR, "set_pre_soak_indicator_binary_sensor"),
     (CONF_DELAY_INDICATOR, "set_delay_indicator_binary_sensor"),
+    (CONF_ALARM, "set_alarm_binary_sensor"),
 )
 
 CONFIG_SCHEMA = (
@@ -132,6 +134,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DELAY_INDICATOR): binary_sensor.binary_sensor_schema(
                 icon="mdi:clock-start"
+            ),
+            cv.Optional(CONF_ALARM): binary_sensor.binary_sensor_schema(
+                icon="mdi:volume-high"
             ),
             cv.Optional(CONF_UART_RAW_CAPTURE): switch.switch_schema(
                 SamsungWasherRawCaptureSwitch,

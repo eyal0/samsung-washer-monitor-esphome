@@ -220,7 +220,7 @@ inline void run() {
   TestUART wf_uart;
   SamsungWasherComponent wf;
   text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
-  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_steam, wf_pre_soak, wf_delay;
+  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_steam, wf_pre_soak, wf_delay, wf_alarm;
   auto wf_hex = [](const char *hex) {
     std::vector<uint8_t> bytes;
     while (hex[0] != 0 && hex[1] != 0) {
@@ -247,6 +247,7 @@ inline void run() {
   wf.set_steam_indicator_binary_sensor(&wf_steam);
   wf.set_pre_soak_indicator_binary_sensor(&wf_pre_soak);
   wf.set_delay_indicator_binary_sensor(&wf_delay);
+  wf.set_alarm_binary_sensor(&wf_alarm);
   feed(wf, wf_uart, temperature_1);
   assert(!wf_temperature.has_state() && !wf_program.has_state());
   wf.set_model(WasherModel::DC92_02395A);
@@ -258,6 +259,7 @@ inline void run() {
   assert(wf_steam.has_state() && !wf_steam.state);
   assert(wf_pre_soak.has_state() && !wf_pre_soak.state);
   assert(wf_delay.has_state() && !wf_delay.state);
+  assert(wf_alarm.has_state() && wf_alarm.state);
   feed(wf, wf_uart, rinse_0);
   assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
   feed(wf, wf_uart, soil_5);
@@ -317,6 +319,11 @@ inline void run() {
   assert(wf_delay.state && wf_display.state == "24h");
   feed(wf, wf_uart, no_delay);
   assert(wf_delay.has_state() && !wf_delay.state && wf_display.state == "0:45");
+  const auto alarm_off = wf_hex("5AA5C018001E007C0100010001E680ED00900000000000FF000000000023003CC8");
+  feed(wf, wf_uart, alarm_off);
+  assert(wf_alarm.has_state() && !wf_alarm.state && wf_soil.state == "3");
+  feed(wf, wf_uart, no_delay); // Same frame as alarm on: the sound-off LED is dark.
+  assert(wf_alarm.state && wf_soil.state == "3");
   const struct {
     const char *hex;
     const char *program;
@@ -334,7 +341,7 @@ inline void run() {
   for (const auto &program : programs) {
     feed(wf, wf_uart, wf_hex(program.hex));
     assert(wf_program.state == program.program && wf_temperature.state == program.temperature);
-    assert(!wf_steam.state && !wf_pre_soak.state && !wf_delay.state);
+    assert(!wf_steam.state && !wf_pre_soak.state && !wf_delay.state && wf_alarm.state);
   }
 
   std::puts("PASS: component runtime tests");

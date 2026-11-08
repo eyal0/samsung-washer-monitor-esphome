@@ -296,6 +296,9 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
   // Bit 6 of byte 3 is the delay light.
   if (this->delay_indicator_binary_sensor_ != nullptr)
     this->delay_indicator_binary_sensor_->publish_state(p[3] & 0x40);
+  // Bit 5 of byte 7 is the sound-off LED. The alarm sounds when that LED is dark.
+  if (this->alarm_binary_sensor_ != nullptr)
+    this->alarm_binary_sensor_->publish_state((p[7] & 0x20) == 0);
 }
 
 void SamsungWasherComponent::dump_config() {
@@ -317,6 +320,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Steam Indicator", this->steam_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Pre Soak Indicator", this->pre_soak_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Delay Indicator", this->delay_indicator_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Alarm", this->alarm_binary_sensor_);
   LOG_SWITCH("  ", "UART Raw Capture", this->raw_capture_switch_);
 }
 
