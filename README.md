@@ -237,7 +237,7 @@ esphome compile tests/component.yaml
 tests/.esphome/build/washer-component-test/.pioenvs/washer-component-test/program
 ```
 
-The runtime tests build against ESPHome's actual entities and filters on a Linux/macOS host, using in-memory UARTs, not the washer. They cover decoding, cycle tracking, optional/filtered entities, link loss, switch restoration and receive-only behavior. The parser test also accepts a binary capture, frame length and expected valid-frame count as arguments.
+GitHub Actions runs these checks on every pull request and on pushes to `main`. The runtime tests build against ESPHome's actual entities and filters on a Linux/macOS host, using in-memory UARTs, not the washer. They cover decoding, cycle tracking, optional/filtered entities, link loss, switch restoration and receive-only behavior. The parser test also accepts a binary capture, frame length and expected valid-frame count as arguments.
 
 To compile `firmware/washer.yaml` against a local checkout before publishing, replace its external component source with:
 

@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: pip install "esphome==2026.9.1"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-esphome-2026.9.1
+
+      - name: Parser tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -pedantic firmware/test_parser.cpp -o /tmp/washer-parser-test
+          /tmp/washer-parser-test /dev/null 32 0
+
+      - name: Config tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Component tests
+        run: |
+          esphome compile tests/component.yaml
+          tests/.esphome/build/washer-component-test/.pioenvs/washer-component-test/program
