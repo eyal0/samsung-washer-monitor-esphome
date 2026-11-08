@@ -273,9 +273,12 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
                washer_dc92_02395a_spin_text(washer_dc92_02395a_bar_level(p[5])));
   publish_text(this->soil_selection_text_sensor_, washer_dc92_02395a_soil_text(washer_dc92_02395a_bar_level(p[7])));
 
+  const int delay_hours = washer_dc92_02395a_delay_hours(p[11], p[13], p[15]);
   const int minutes = washer_dc92_02395a_time_minutes(p[11], p[13], p[15]);
   char display[32];
-  if (minutes >= 0)
+  if (delay_hours >= 0)
+    snprintf(display, sizeof(display), "%dh", delay_hours);
+  else if (minutes >= 0)
     snprintf(display, sizeof(display), "%d:%02d", minutes / 60, minutes % 60);
   else
     snprintf(display, sizeof(display), "Unknown / non-time display");
@@ -290,6 +293,9 @@ void SamsungWasherComponent::handle_dc92_02395a_frame_(const std::vector<uint8_t
   // Bit 5 of byte 3 is the Pre Soak light. The low 5 bits of that byte remain the rinse bar.
   if (this->pre_soak_indicator_binary_sensor_ != nullptr)
     this->pre_soak_indicator_binary_sensor_->publish_state(p[3] & 0x20);
+  // Bit 6 of byte 3 is the delay light.
+  if (this->delay_indicator_binary_sensor_ != nullptr)
+    this->delay_indicator_binary_sensor_->publish_state(p[3] & 0x40);
 }
 
 void SamsungWasherComponent::dump_config() {
@@ -310,6 +316,7 @@ void SamsungWasherComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Door Lock Indicator", this->lock_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Steam Indicator", this->steam_indicator_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Pre Soak Indicator", this->pre_soak_indicator_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Delay Indicator", this->delay_indicator_binary_sensor_);
   LOG_SWITCH("  ", "UART Raw Capture", this->raw_capture_switch_);
 }
 

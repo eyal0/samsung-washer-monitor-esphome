@@ -223,6 +223,17 @@ inline int washer_dc92_02395a_digit(uint8_t value) {
   }
 }
 
+// Delay End uses the clock digits: byte 11 is the hour tens, byte 13 the hour ones,
+// and byte 15 is the letter h (segments c, e, f and g). A blank tens digit is zero.
+inline int washer_dc92_02395a_delay_hours(uint8_t tens_glyph, uint8_t ones_glyph, uint8_t suffix_glyph) {
+  if ((suffix_glyph & 0x7f) != 0x74) return -1;
+  int tens = (tens_glyph & 0x7f) == 0 ? 0 : washer_dc92_02395a_digit(tens_glyph);
+  int ones = washer_dc92_02395a_digit(ones_glyph);
+  if (tens < 0 || ones < 0) return -1;
+  int hours = tens * 10 + ones;
+  return hours >= 1 && hours <= 24 ? hours : -1;
+}
+
 // Byte 11 is the hour, byte 13 the minute tens, and byte 15 the minute ones.
 // A blank hour or minute-tens digit is zero. A blank ones digit is not a time.
 inline int washer_dc92_02395a_time_minutes(uint8_t hour_glyph, uint8_t tens_glyph, uint8_t ones_glyph) {

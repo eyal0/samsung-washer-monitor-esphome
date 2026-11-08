@@ -201,6 +201,16 @@ int main(int argc, char **argv) {
   assert(washer_dc92_02395a_time_minutes(0x5b, 0x86, 0xcf) == 133); // 2:13
   assert(washer_dc92_02395a_time_minutes(0, 0x66, 0) == -1); // Blank ones digit.
   assert(washer_dc92_02395a_time_minutes(0, 0x7d, 0x3f) == -1); // Minute tens above 5.
+  assert(washer_dc92_02395a_time_minutes(0, 0x86, 0xf4) == -1); // Delay End is not H:MM.
+  assert(washer_dc92_02395a_delay_hours(0, 0x86, 0xf4) == 1);
+  assert(washer_dc92_02395a_delay_hours(0, 0xdb, 0xf4) == 2);
+  assert(washer_dc92_02395a_delay_hours(0, 0xa7, 0xf4) == 7);
+  assert(washer_dc92_02395a_delay_hours(0x06, 0xbf, 0xf4) == 10);
+  assert(washer_dc92_02395a_delay_hours(0x5b, 0xe6, 0xf4) == 24);
+  assert(washer_dc92_02395a_delay_hours(0x86, 0x3f, 0x74) == 10); // Bit 7 is not a segment.
+  assert(washer_dc92_02395a_delay_hours(0, 0, 0xf4) == -1); // Blank ones digit.
+  assert(washer_dc92_02395a_delay_hours(0, 0x86, 0xed) == -1); // A minute digit is not the letter h.
+  assert(washer_dc92_02395a_delay_hours(0x4f, 0x3f, 0xf4) == -1); // 30 hours.
   struct Dc92Sample {
     const char *hex;
     int temperature;
