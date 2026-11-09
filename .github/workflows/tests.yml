@@ -10,25 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install ESPHome
-        run: pip install "esphome==2026.9.1"
+        run: pip install "esphome==2026.10.2"
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
-          key: platformio-${{ runner.os }}-esphome-2026.9.1
+          key: platformio-${{ runner.os }}-esphome-2026.10.2
 
       - name: Parser tests
         run: |
-          g++ -std=c++17 -Wall -Wextra -pedantic firmware/test_parser.cpp -o /tmp/washer-parser-test
+          g++ -std=c++17 -Wall -Wextra -pedantic -Werror firmware/test_parser.cpp -o /tmp/washer-parser-test
           /tmp/washer-parser-test /dev/null 32 0
 
       - name: Config tests
