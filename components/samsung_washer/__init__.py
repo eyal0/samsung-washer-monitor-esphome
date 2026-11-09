@@ -23,6 +23,12 @@ SamsungWasherComponent = samsung_washer_ns.class_(
 SamsungWasherRawCaptureSwitch = samsung_washer_ns.class_(
     "SamsungWasherRawCaptureSwitch", switch.Switch, cg.Component
 )
+WasherModel = samsung_washer_ns.enum("WasherModel", is_class=True)
+
+MODELS = {
+    "DC92-01950B": WasherModel.DC92_01950B,
+    "DC92-02395A": WasherModel.DC92_02395A,
+}
 
 CONF_SECONDARY_UART_ID = "secondary_uart_id"
 
@@ -31,14 +37,21 @@ CONF_PROGRAM_INDICATOR = "program_indicator"
 CONF_TEMPERATURE_SELECTION = "temperature_selection"
 CONF_SPIN_SELECTION = "spin_selection"
 CONF_RINSE_SELECTION = "rinse_selection"
+CONF_SOIL_SELECTION = "soil_selection"
 CONF_DISPLAYED_TIME = "displayed_time"
 CONF_OPTION = "option"
+CONF_MODEL = "model"
 
 CONF_PANEL_ON = "panel_on"
 CONF_UART_LINK_ACTIVE = "uart_link_active"
 CONF_BUBBLE_SOAK_INDICATOR = "bubble_soak_indicator"
 CONF_EASY_IRON_INDICATOR = "easy_iron_indicator"
 CONF_DOOR_LOCK_INDICATOR = "door_lock_indicator"
+CONF_CHILD_LOCK_INDICATOR = "child_lock_indicator"
+CONF_STEAM_INDICATOR = "steam_indicator"
+CONF_PRE_SOAK_INDICATOR = "pre_soak_indicator"
+CONF_DELAY_INDICATOR = "delay_indicator"
+CONF_ALARM = "alarm"
 
 CONF_UART_RAW_CAPTURE = "uart_raw_capture"
 
@@ -48,6 +61,7 @@ TEXT_SENSORS = (
     (CONF_TEMPERATURE_SELECTION, "set_temperature_selection_text_sensor"),
     (CONF_SPIN_SELECTION, "set_spin_selection_text_sensor"),
     (CONF_RINSE_SELECTION, "set_rinse_selection_text_sensor"),
+    (CONF_SOIL_SELECTION, "set_soil_selection_text_sensor"),
     (CONF_DISPLAYED_TIME, "set_displayed_time_text_sensor"),
     (CONF_OPTION, "set_option_selection_text_sensor"),
 )
@@ -58,12 +72,20 @@ BINARY_SENSORS = (
     (CONF_BUBBLE_SOAK_INDICATOR, "set_bubble_indicator_binary_sensor"),
     (CONF_EASY_IRON_INDICATOR, "set_iron_indicator_binary_sensor"),
     (CONF_DOOR_LOCK_INDICATOR, "set_lock_indicator_binary_sensor"),
+    (CONF_CHILD_LOCK_INDICATOR, "set_child_lock_indicator_binary_sensor"),
+    (CONF_STEAM_INDICATOR, "set_steam_indicator_binary_sensor"),
+    (CONF_PRE_SOAK_INDICATOR, "set_pre_soak_indicator_binary_sensor"),
+    (CONF_DELAY_INDICATOR, "set_delay_indicator_binary_sensor"),
+    (CONF_ALARM, "set_alarm_binary_sensor"),
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SamsungWasherComponent),
+            cv.Optional(CONF_MODEL, default="DC92-01950B"): cv.enum(
+                MODELS, upper=True, underscore="-"
+            ),
             cv.Optional(CONF_SECONDARY_UART_ID): cv.use_id(uart.UARTComponent),
             cv.Optional(CONF_CYCLE_STATUS): text_sensor.text_sensor_schema(
                 icon="mdi:washing-machine"
@@ -79,6 +101,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_RINSE_SELECTION): text_sensor.text_sensor_schema(
                 icon="mdi:water"
+            ),
+            cv.Optional(CONF_SOIL_SELECTION): text_sensor.text_sensor_schema(
+                icon="mdi:tshirt-crew-outline"
             ),
             cv.Optional(CONF_DISPLAYED_TIME): text_sensor.text_sensor_schema(
                 icon="mdi:timer-outline"
@@ -103,6 +128,21 @@ CONFIG_SCHEMA = (
                 icon="mdi:lock",
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_CHILD_LOCK_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:account-lock"
+            ),
+            cv.Optional(CONF_STEAM_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:kettle-steam"
+            ),
+            cv.Optional(CONF_PRE_SOAK_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:basket"
+            ),
+            cv.Optional(CONF_DELAY_INDICATOR): binary_sensor.binary_sensor_schema(
+                icon="mdi:clock-start"
+            ),
+            cv.Optional(CONF_ALARM): binary_sensor.binary_sensor_schema(
+                icon="mdi:volume-high"
+            ),
             cv.Optional(CONF_UART_RAW_CAPTURE): switch.switch_schema(
                 SamsungWasherRawCaptureSwitch,
                 icon="mdi:code-braces",
@@ -115,25 +155,18 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
-_PRIMARY_UART_VALIDATE = uart.final_validate_device_schema(
-    "samsung_washer",
-    uart_bus=CONF_UART_ID,
-    baud_rate=9600,
-    require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
-)
 
-_SECONDARY_UART_VALIDATE = uart.final_validate_device_schema(
-    "samsung_washer",
-    uart_bus=CONF_SECONDARY_UART_ID,
-    baud_rate=9600,
-    require_rx=True,
-    data_bits=8,
-    parity="NONE",
-    stop_bits=1,
-)
+def _validate_uart_bus(config: ConfigType, uart_bus: str) -> None:
+    baud_rate = 38400 if config[CONF_MODEL] == "DC92-02395A" else 9600
+    uart.final_validate_device_schema(
+        "samsung_washer",
+        uart_bus=uart_bus,
+        baud_rate=baud_rate,
+        require_rx=True,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )(config)
 
 
 def _validate_uart_debug(config: ConfigType) -> ConfigType:
@@ -146,9 +179,9 @@ def _validate_uart_debug(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    _PRIMARY_UART_VALIDATE(config)
+    _validate_uart_bus(config, CONF_UART_ID)
     if CONF_SECONDARY_UART_ID in config:
-        _SECONDARY_UART_VALIDATE(config)
+        _validate_uart_bus(config, CONF_SECONDARY_UART_ID)
     cv.Schema(
         {
             cv.Required(CONF_UART_ID): fv.id_declaration_match_schema(_validate_uart_debug),
@@ -166,6 +199,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(var.set_model(config[CONF_MODEL]))
 
     if secondary_uart_id := config.get(CONF_SECONDARY_UART_ID):
         secondary_uart = await cg.get_variable(secondary_uart_id)

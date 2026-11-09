@@ -216,6 +216,167 @@ inline void run() {
   capture.turn_off();
   assert(!capture.state);
 
+  // DC92-02395A frames are 33 bytes and must not update the original decoder.
+  TestUART wf_uart;
+  SamsungWasherComponent wf;
+  text_sensor::TextSensor wf_status, wf_program, wf_temperature, wf_spin, wf_rinse, wf_soil, wf_display;
+  binary_sensor::BinarySensor wf_link, wf_panel, wf_lock, wf_child_lock, wf_steam, wf_pre_soak, wf_delay, wf_alarm;
+  auto wf_hex = [](const char *hex) {
+    std::vector<uint8_t> bytes;
+    while (hex[0] != 0 && hex[1] != 0) {
+      auto nibble = [](char c) { return c <= '9' ? c - '0' : c - 'A' + 10; };
+      bytes.push_back((nibble(hex[0]) << 4) | nibble(hex[1]));
+      hex += 2;
+    }
+    return bytes;
+  };
+  const auto temperature_1 = wf_hex("5AA5C018001E005C0000000001E680FF00800000000000FF00000000002300A907");
+  const auto rinse_0 = wf_hex("5AA5C000001E005C0100010001CF806D00800000000000FF00000000002300DBEA");
+  const auto soil_5 = wf_hex("5AA5C010001F005F0118010601CF80EF00800000000000FF0000000000230051DB");
+  wf.set_uart_parent(&wf_uart);
+  wf.set_cycle_status_text_sensor(&wf_status);
+  wf.set_program_indicator_text_sensor(&wf_program);
+  wf.set_temperature_selection_text_sensor(&wf_temperature);
+  wf.set_spin_selection_text_sensor(&wf_spin);
+  wf.set_rinse_selection_text_sensor(&wf_rinse);
+  wf.set_soil_selection_text_sensor(&wf_soil);
+  wf.set_displayed_time_text_sensor(&wf_display);
+  wf.set_link_active_binary_sensor(&wf_link);
+  wf.set_panel_on_binary_sensor(&wf_panel);
+  wf.set_lock_indicator_binary_sensor(&wf_lock);
+  wf.set_child_lock_indicator_binary_sensor(&wf_child_lock);
+  wf.set_steam_indicator_binary_sensor(&wf_steam);
+  wf.set_pre_soak_indicator_binary_sensor(&wf_pre_soak);
+  wf.set_delay_indicator_binary_sensor(&wf_delay);
+  wf.set_alarm_binary_sensor(&wf_alarm);
+  feed(wf, wf_uart, temperature_1);
+  assert(!wf_temperature.has_state() && !wf_program.has_state());
+  wf.set_model(WasherModel::DC92_02395A);
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_temperature.state == "Cold" && wf_rinse.state == "2");
+  assert(wf_spin.state == "4" && wf_soil.state == "3" && wf_display.state == "0:48");
+  assert(wf_status.state == "Unknown" && wf_program.state == "Normal" && !wf_panel.has_state());
+  assert(wf_lock.has_state() && !wf_lock.state); // Byte 17 is 0x80; bit 7 is not the lock.
+  assert(wf_child_lock.has_state() && !wf_child_lock.state);
+  assert(wf_steam.has_state() && !wf_steam.state);
+  assert(wf_pre_soak.has_state() && !wf_pre_soak.state);
+  assert(wf_delay.has_state() && !wf_delay.state);
+  assert(wf_alarm.has_state() && wf_alarm.state);
+  feed(wf, wf_uart, rinse_0);
+  assert(wf_temperature.state == "3" && wf_rinse.state == "0" && wf_soil.state == "3");
+  feed(wf, wf_uart, soil_5);
+  assert(wf_spin.state == "High" && wf_soil.state == "Heavy" && wf_rinse.state == "1");
+  assert(wf_display.state == "1:39");
+  feed(wf, wf_uart, frame(true)); // Original 32-byte Cotton frame is the wrong length.
+  assert(wf_temperature.state == "3" && wf_program.state == "Normal");
+  wf.update();
+  assert(wf_link.state);
+  auto corrupt = temperature_1;
+  corrupt[12] ^= 1;
+  feed(wf, wf_uart, corrupt);
+  assert(wf_temperature.state == "3");
+  // Another cycle sets the high bit of byte 12. The low bit is still the cold LED.
+  const auto other_cycle_cold = wf_hex("5AA5C018001F005F0018000681ED00EF00800000000000FF00000000002300B2FA");
+  const auto other_cycle_2 = wf_hex("5AA5C018001F005F0018010681ED00EF00800000000000FF00000000002300670C");
+  feed(wf, wf_uart, other_cycle_cold);
+  assert(wf_temperature.state == "Cold" && wf_spin.state == "High" && wf_soil.state == "Heavy");
+  assert(wf_program.state == "Heavy Duty");
+  feed(wf, wf_uart, other_cycle_2);
+  assert(wf_temperature.state == "2" && wf_display.state == "1:59");
+  const auto minutes_41 = wf_hex("5AA5C018001E005C0000000001E6808600830000000000FF000000000023007433");
+  const auto minutes_37 = wf_hex("5AA5C018001E001C00000000014F00A700820000000000FF000000000023001399");
+  feed(wf, wf_uart, minutes_41);
+  assert(wf_display.state == "0:41" && wf_lock.state && wf_program.state == "Normal");
+  feed(wf, wf_uart, minutes_37); // Normal's light is off in this copy while the program blinks.
+  assert(wf_display.state == "0:37" && wf_lock.state && wf_program.state == "Normal");
+  const auto door_locked = wf_hex("5AA5C00000000000000000000000003F00020000000000FF00000000002300BE14");
+  const auto door_unlocked = wf_hex("5AA5C00000000000000000000000003F00000000000000FF0000000000230048D6");
+  const auto door_locked_copy = wf_hex("5AA5C000001E005C000000000000800600820000000000FF000000000023006D04");
+  feed(wf, wf_uart, door_unlocked);
+  assert(wf_lock.has_state() && !wf_lock.state);
+  feed(wf, wf_uart, door_locked);
+  assert(wf_lock.state && !wf_child_lock.state);
+  feed(wf, wf_uart, door_locked_copy);
+  assert(wf_lock.state && wf_program.state == "Normal");
+  const auto steam_on = wf_hex("5AA5C018005E015C01180106018680CF00800000000000FF00000000002300E416");
+  const auto steam_off = wf_hex("5AA5C018001E015C0100010001ED80DB00800000000000FF000000000023006B95");
+  feed(wf, wf_uart, steam_on);
+  assert(wf_steam.state && wf_spin.state == "4" && wf_temperature.state == "4");
+  feed(wf, wf_uart, steam_off);
+  assert(wf_steam.has_state() && !wf_steam.state && wf_spin.state == "4");
+  const auto pre_soak_on = wf_hex("5AA5C038001E015C0118010601DB80DB00800000000000FF00000000002300E01A");
+  feed(wf, wf_uart, pre_soak_on);
+  assert(wf_pre_soak.state && wf_rinse.state == "2");
+  feed(wf, wf_uart, steam_off);
+  assert(wf_pre_soak.has_state() && !wf_pre_soak.state && wf_rinse.state == "2");
+  const auto delay_1 = wf_hex("5AA5C058001E005C01000100018680F400800000000000FF000000000023005A5B");
+  const auto delay_10 = wf_hex("5AA5C058001E005C0100010601BF80F400800000000000FF00000000002300E18F");
+  const auto delay_24 = wf_hex("5AA5C058001E005C0100015B01E680F400800000000000FF000000000023006149");
+  const auto no_delay = wf_hex("5AA5C018001E005C0100010001E680ED00800000000000FF000000000023007A99");
+  feed(wf, wf_uart, delay_1);
+  assert(wf_delay.state && wf_display.state == "1h" && wf_rinse.state == "2");
+  feed(wf, wf_uart, delay_10);
+  assert(wf_delay.state && wf_display.state == "10h");
+  feed(wf, wf_uart, delay_24);
+  assert(wf_delay.state && wf_display.state == "24h");
+  feed(wf, wf_uart, no_delay);
+  assert(wf_delay.has_state() && !wf_delay.state && wf_display.state == "0:45");
+  const auto alarm_off = wf_hex("5AA5C018001E007C0100010001E680ED00900000000000FF000000000023003CC8");
+  feed(wf, wf_uart, alarm_off);
+  assert(wf_alarm.has_state() && !wf_alarm.state && wf_soil.state == "3");
+  feed(wf, wf_uart, no_delay); // Same frame as alarm on: the sound-off LED is dark.
+  assert(wf_alarm.state && wf_soil.state == "3");
+  const auto child_lock_on = wf_hex("5AA5C018011E015C0118010601E680BF00880000000000FF000000000023007024");
+  const auto child_lock_off = wf_hex("5AA5C018011E015C0118010601E680BF00800000000000FF000000000023009B4F");
+  feed(wf, wf_uart, child_lock_on);
+  assert(wf_child_lock.state && !wf_lock.state && wf_temperature.state == "Hot");
+  feed(wf, wf_uart, child_lock_off);
+  assert(wf_child_lock.has_state() && !wf_child_lock.state && !wf_lock.state);
+  const struct {
+    const char *hex;
+    const char *program;
+    const char *temperature;
+  } programs[] = {
+      {"5AA5C018001E005C0118810601BF00CF00800000000000FF00000000002300EC71", "Whites", "3"},
+      {"5AA5C0180018005C81180106018600ED00800000000000FF00000000002300902A", "Bedding", "3"},
+      {"5AA5C018011E815C0118015B01DB00FF00800000000000FF00000000002300476E", "Sanitize", "Hot"},
+      {"5AA5C018011F01400118014F01ED40DB00800000000000FF0000000000230005D0", "Self Clean", "Hot"},
+      {"5AA5C010001E004000000000400600EF00800000000000FF000000000023008CD6", "Rinse & Spin", "No indicator"},
+      {"5AA5C0180018005C0100410001ED00BF00800000000000FF000000000023005694", "Perm Press", "3"},
+      {"5AA5C018001C005C4000000001E600E600800000000000FF000000000023004A9F", "Delicates", "Cold"},
+      {"5AA5C010001F40500100010001DB00DB00800000000000FF000000000023005A28", "Quick Wash", "3"},
+  };
+  for (const auto &program : programs) {
+    feed(wf, wf_uart, wf_hex(program.hex));
+    assert(wf_program.state == program.program && wf_temperature.state == program.temperature);
+    assert(!wf_steam.state && !wf_pre_soak.state && !wf_delay.state && wf_alarm.state);
+    assert(!wf_child_lock.state);
+  }
+  const auto spin_lit = wf_hex("5AA5C000001E0040000000000006800600800000000000FF00000000002300AF44");
+  const auto spin_dark = wf_hex("5AA5C000001E0000000000000006000600000000000000FF00000000002300195F");
+  const auto completed = wf_hex("5AA5C00000000000000000000000000000000000000000FF0000000000230054D2");
+  const auto powered_off = wf_hex("5AA5C00000000000000000000000000000000000000000FF000000000003005234");
+  feed(wf, wf_uart, powered_off);
+  assert(wf_status.state == "Off");
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_status.state == "Unknown"); // Selecting a cycle before Start is not a pause.
+  feed(wf, wf_uart, spin_dark);
+  assert(wf_status.state == "Running");
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Running");
+  delay(2100);
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Paused");
+  feed(wf, wf_uart, completed);
+  assert(wf_status.state == "Completed");
+  feed(wf, wf_uart, spin_lit);
+  assert(wf_status.state == "Unknown");
+  delay(5100);
+  wf.update();
+  assert(!wf_link.state && wf_status.state == "Unknown");
+  feed(wf, wf_uart, temperature_1);
+  assert(wf_status.state == "Unknown");
+
   std::puts("PASS: component runtime tests");
   std::exit(0);
 }
