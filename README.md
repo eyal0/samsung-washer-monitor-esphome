@@ -1,40 +1,56 @@
 # Samsung Washer Monitor for ESPHome
 
-Local ESPHome monitoring for my **Samsung WW11BGA046**, which uses the **DC92-01950B control/display panel**. An ESP listens to the panel/main-board UART. No Samsung cloud account, no replacement of the original washer firmware.
+Local ESPHome monitoring for Samsung washers. An ESP listens to the panel/main-board UART. No Samsung cloud account, no replacement of the original washer firmware.
 
-The [DC92-01950B parts catalog](https://www.sos-parts.com/display-card-original-control-unit-samsung-dc92-01950b-133080.html) lists this panel in **80 regional washer variants**, so this may also work with other machines using the same panel. Only my machine has been tested so far.
+Two control boards are supported, selected with `model`:
 
-A second frame format, from a WF45R6100AP/US with the **DC92-02395A** board, is selected with `model`. Cycle status, temperature, rinse, spin, soil, displayed time, the door lock, child lock, steam, Pre Soak, delay, alarm and the program are decoded. The other lamp indicators are not.
+| Board (`model`) | Washer | Tested by | Example config |
+| --- | --- | --- | --- |
+| **DC92-01950B** (default) | WW11BGA046 | me | [`washer.yaml`](firmware/washer.yaml), [`washer-thread.yaml`](firmware/washer-thread.yaml) |
+| **DC92-02395A** | WF45R6100AP/US | [@eyal0](https://github.com/eyal0) | [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml) |
+
+The [DC92-01950B parts catalog](https://www.sos-parts.com/display-card-original-control-unit-samsung-dc92-01950b-133080.html) lists that panel in **80 regional washer variants**, so this may also work with other machines using the same panel. Each board has only been tested on the one washer listed.
 
 **Receive-only:** this cannot start, stop or change a wash remotely.
 
-**Experimental DIY project:** tested on one washer, not a qualified or plug-and-play retrofit. Read [Safety](#safety) before attempting any hardware work.
+**Experimental DIY project:** tested on two washers, not a qualified or plug-and-play retrofit. Read [Safety](#safety) before attempting any hardware work.
 
 ## What you get
 
 ![Home Assistant device-page Sensors card showing Cotton, 40 °C, 800 rpm, two rinses and 1:05 displayed time](docs/images/home-assistant-demo.webp)
 
-The actual Home Assistant device-page **Sensors** card, with the entity icons configured in this project. **Demo values:** selections and indicators replayed from my washer's recorded history; cycle status is simulated, not a live reading.
+The actual Home Assistant device-page **Sensors** card from my DC92-01950B washer, with the entity icons configured in this project. **Demo values:** selections and indicators replayed from my washer's recorded history; cycle status is simulated, not a live reading.
 
-- Program, temperature, spin, rinse and option selections, plus Bubble Soak and Easy Iron indicators.
+Both boards:
+
+- Program, temperature, spin and rinse selections.
 - Displayed time, including Delay End.
 - **Cycle status:** `Running`, `Paused`, `Completed`, `Off`, `Unknown`.
-- Panel-on and door-lock indicators, a UART-link diagnostic, plus an optional raw-capture switch.
+- Door-lock indicator, a UART-link diagnostic, plus an optional raw-capture switch.
 - An optional Android progress/countdown and wash-finished notification through Home Assistant.
+
+Board-specific:
+
+- **DC92-01950B:** option selection, plus Panel-on, Bubble Soak and Easy Iron indicators.
+- **DC92-02395A:** soil selection, plus child-lock, Steam, Pre Soak, delay and alarm indicators.
+
+Config validation rejects entities the selected `model` cannot fill.
 
 These are panel readings, not measured water temperature, drum speed or wash stages. The door-lock entity reports the panel's door-lock indicator.
 
 On DC92-01950B, Running needs a captured Start event and blink confirmation. On DC92-02395A, Running is the status light blinking, and Paused needs a blink first. After a reboot or UART loss, status stays Unknown until fresh evidence arrives. Other selections can retain stale values; check UART link and device availability. Completion has natural-finish capture evidence, but cancellation, errors and other programs need more testing.
 
-## Photos
+## Photos (DC92-01950B)
+
+The photos, pinout and wiring below are from my DC92-01950B washer. For DC92-02395A, see [DC92-02395A wiring](#dc92-02395a-wiring).
 
 ![Tested Samsung control-panel layout](docs/images/control-panel.webp)
 
-**This is the correct control-panel layout for this project**, tested on my WW11BGA046. Use it as a visual reference, and check the installed board is **DC92-01950B**; appearance alone does not confirm compatibility.
+**This is the correct control-panel layout for DC92-01950B**, tested on my WW11BGA046. Use it as a visual reference, and check the installed board is **DC92-01950B**; appearance alone does not confirm compatibility.
 
 ![CN803 and CN201 marked on the control-panel board](docs/images/display-board-pinout.webp)
 
-## Connector pinout
+## Connector pinout (DC92-01950B)
 
 The photo above marks **CN803** (main harness) and **CN201** (programming header). **In this vertical photo, the top pin of each connector is pin 1**, with numbering increasing downward: CN803 pins 1–8 and CN201 pins 1–4. The small arrows on the PCB mark pin 1; check those marks on your own board rather than relying on cable orientation. In my harness, the white conductor identifies CN803 pin 1.
 
@@ -99,12 +115,19 @@ Repeat for **CN803 pin 1 → GPIO1** and **CN803 pin 2 → GPIO2**; do not join 
 
 This is my prototype, not a recommended permanent mounting method or a qualified wiring guide.
 
+## DC92-02395A wiring
+
+Reported by [@eyal0](https://github.com/eyal0) in [#3](https://github.com/kralonur/samsung-washer-monitor-esphome/issues/3) for his WF45R6100AP/US; not verified by me. The board is shown on [page 36 of the WF45R6100AP/US service manual](https://www.manualslib.com/manual/3313659/Samsung-Wf45r6100ap-Us.html?page=36#manual).
+
+- **UART:** the two signals are on the connector labelled **CN3**, connected to GPIO1 (pin 1 stream, all readings) and GPIO2 (pin 2 stream, raw diagnostics only), like CN803 above. Both run at **38400 baud**, 8N1.
+- **Power:** take 5 V from **CN6** only. Ground is common to CN3, CN5, CN6 and CN7, but the 5 V on CN5 and CN7 is a separate rail; powering the ESP from it made the washer's speaker misbehave and the ESP reboot.
+
+The same 5 V→3.3 V level-translation requirement applies. A level shifter matters more here: 38400 baud leaves a resistor divider far less margin than 9600.
+
 ## Hardware tested
 
-- **Control/display panel:** Samsung **DC92-01950B**.
-- **Washer:** Samsung WW11BGA046.
-- **Also decoded from captures:** Samsung **DC92-02395A** on a WF45R6100AP/US. Pin 1 frames are 33 bytes at 38400 baud. Use [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml).
-- **ESP board:** ESP32-C6 SuperMini.
+- **Control/display panels:** Samsung **DC92-01950B** (WW11BGA046, mine) and **DC92-02395A** (WF45R6100AP/US, [@eyal0](https://github.com/eyal0)).
+- **ESP board:** ESP32-C6 SuperMini on my washer.
 
 I used an ESP32-C6, but a C6 is not required. Other ESPHome-supported ESP boards should work too, provided they have one usable UART RX channel for the readings (two if you also want CN803 pin 2 raw diagnostics, as in the example configuration). Adjust the board, framework, logger and RX pins in the configuration for your hardware; only the C6 has been tested here.
 
@@ -125,11 +148,11 @@ Samsung's [official English repair guide](https://downloadcenter.samsung.com/con
 
 Follow the official [ESPHome installation guide](https://esphome.io/install/) and [Device Builder getting-started guide](https://esphome.io/install/getting-started/).
 
-1. Copy [`washer.yaml`](firmware/washer.yaml) into your Device Builder configuration directory (or add the `external_components`, `uart` and `samsung_washer` blocks to an existing ESPHome YAML). For the WF45R6100AP/US board, copy [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml) instead. ESPHome fetches the [`samsung_washer`](components/samsung_washer/) external component from this repository automatically.
+1. Copy the example config for your board (see the table at the top) into your Device Builder configuration directory, or add its `external_components`, `uart` and `samsung_washer` blocks to an existing ESPHome YAML. ESPHome fetches the [`samsung_washer`](components/samsung_washer/) external component from this repository automatically.
 2. Add the entries from [`secrets.example.yaml`](firmware/secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
-3. Review the board configuration and RX substitutions. My tested wiring matches the ESP32-C6 defaults:
+3. Review the board configuration and RX substitutions. The tested wiring matches the ESP32-C6 defaults:
 
-   | Samsung CN803 harness | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
+   | UART stream (CN803 on DC92-01950B, CN3 on DC92-02395A) | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
    | --- | --- |
    | Pin 1 | GPIO1 |
    | Pin 2 | GPIO2 |
@@ -143,14 +166,35 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
 The [`washer.yaml`](firmware/washer.yaml) example contains all supported entities for the DC92-01950B board. [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml) is the same wiring with the entities that the DC92-02395A board decodes. Under `samsung_washer`:
 
 - `model` selects the control board. `DC92-01950B` (the default) is the 32-byte format and requires 9600 baud. `DC92-02395A` is the 33-byte format from the WF45R6100AP/US and requires 38400 baud. Both UART blocks use 8 data bits, no parity, and 1 stop bit. `dc92_02395a` is accepted as well.
-- `uart_id` selects the **CN803 pin 1** UART. This stream supplies all readings.
-- `secondary_uart_id` optionally selects the **CN803 pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
+- `uart_id` selects the **pin 1** UART (CN803 on DC92-01950B, CN3 on DC92-02395A). This stream supplies all readings.
+- `secondary_uart_id` optionally selects the **pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
 - Every entity block is optional. Standard ESPHome entity options such as `id`, `icon`, filters and automations remain available. Tracking does not depend on which entities you expose.
 - `uart_raw_capture` adds the diagnostic switch; it defaults to off after reboot. While on, it logs the raw bytes of pin 1 (and pin 2, if `secondary_uart_id` is set) in chunks of up to 64 bytes as hex under the `washer.raw` log tag, including malformed data, without transmitting anything.
-- `soil_selection` is filled only for `DC92-02395A`. On that board, temperature is `Cold`, `2`, `3`, `4` or `Hot` (one light through all five, cold to hot). Rinse is the light count `0` to `5`. Spin is `0`, `No Spin`, `2`, `3`, `4`, or `High`. Soil is `0`, `Light`, `2`, `3`, `4`, or `Heavy`. A pattern that is not a solid bar is `Unknown`. Displayed time uses the same text as the other board. An `H:MM` time uses byte 11 for the hour, byte 13 for the minute tens, and byte 15 for the minute ones. A delay uses those same positions for the hour tens, the hour ones, and the letter h, and is published as `1h` through `24h`. Bits 0 through 6 are segments a through g, and a blank hour or tens digit is zero. The delay light is bit 6 of byte 3, beside the rinse bar. Cycle status is `Running` while bit 6 of byte 7 blinks, and `Paused` when that light holds still after a blink. Before the first blink, such as while choosing a cycle, it is `Unknown`. A blank panel with byte 29 equal to `0x23` is `Completed`, and the same blank panel with byte 29 equal to `0x03` is `Off`. The door lock is bit 1 of byte 17. Child lock is bit 3 of byte 17. Steam is bit 6 of byte 5, beside the spin bar. Pre Soak is bit 5 of byte 3, beside the rinse bar. Alarm is on when bit 5 of byte 7 is clear. That bit is the sound-off LED beside the soil bar. Program is one lit dial light: `Normal`, `Heavy Duty`, `Whites`, `Bedding`, `Sanitize`, `Rinse & Spin`, `Perm Press`, `Delicates`, `Quick Wash`, or `Self Clean`. While a program is running that light blinks, and a dark frame keeps the previous program. Option, panel, bubble soak and easy iron are not decoded on that board, and validation rejects them there. Likewise, soil, child lock, steam, Pre Soak, delay and alarm are rejected on `DC92-01950B`.
 - `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and resets cycle status to Unknown. On `DC92-01950B`, a blank panel must persist for two seconds before reporting Off. On `DC92-02395A`, Off and Completed apply on the matching frame, and a blink must hold still for two seconds before the reading returns to `Paused`.
 
 No parser header or YAML lambdas need to be copied. When updating an existing installation, remove the old `includes: washer_parser.h`, washer globals/interval, template entities and UART debug lambdas before adding the new component blocks. The example keeps the old entity names, so Home Assistant entity IDs stay the same; don't rename them if you want to keep your history and automations. The old template entities' ESPHome `id` values (such as `cycle_status` or `packet_diagnostics`) are not set by default; if your own YAML refers to them, add the `id` to the matching entity block.
+
+### DC92-02395A readings
+
+Byte numbers count from 0 at the `5A` header.
+
+| Entity | Values | Source |
+| --- | --- | --- |
+| Cycle status | `Running` while the status light blinks; `Paused` when it holds still for two seconds after a blink; `Unknown` before the first blink (such as while choosing a cycle); `Completed` / `Off` on a blank panel with byte 29 `0x23` / `0x03` | Byte 7 bit 6, byte 29 |
+| Program indicator | `Normal`, `Heavy Duty`, `Whites`, `Bedding`, `Sanitize`, `Rinse & Spin`, `Perm Press`, `Delicates`, `Quick Wash`, `Self Clean`. The lit light blinks while running; a dark frame keeps the previous program | Bits 6–7 of bytes 6, 8, 10, 12, 14 |
+| Temperature selection | `Cold`, `2`, `3`, `4`, `Hot` (one to five lights, cold to hot); `No indicator` when all are dark | Bit 0 of bytes 12, 10, 8, 6, 4 |
+| Rinse selection | Light count `0` to `5` | Byte 3, low 5 bits |
+| Spin selection | `0`, `No Spin`, `2`, `3`, `4`, `High` | Byte 5, low 5 bits |
+| Soil selection | `0`, `Light`, `2`, `3`, `4`, `Heavy` | Byte 7, low 5 bits |
+| Displayed time | `H:MM`, or Delay End as `1h` to `24h`; same text as the other board | Bytes 11, 13, 15 (segments a–g in bits 0–6; a blank leading digit is zero) |
+| Door lock indicator | On when set | Byte 17 bit 1 |
+| Child lock indicator | On when set | Byte 17 bit 3 |
+| Steam indicator | On when set | Byte 5 bit 6 |
+| Pre Soak indicator | On when set | Byte 3 bit 5 |
+| Delay indicator | On when set | Byte 3 bit 6 |
+| Alarm | On when the sound-off LED is dark | Byte 7 bit 5 clear |
+
+Rinse, spin and soil bars fill from bit 4 downward; a pattern that is not a solid bar is `Unknown`. Option, panel-on, Bubble Soak and Easy Iron are not decoded.
 
 ### Thread instead of Wi-Fi
 

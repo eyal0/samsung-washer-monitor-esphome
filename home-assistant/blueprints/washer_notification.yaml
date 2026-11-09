@@ -3,7 +3,7 @@ blueprint:
   description: >-
     Shows running/paused status and the washer's displayed time in one ongoing
     Android Companion notification using the firmware's Cycle status sensor.
-    Completed (observed CN803 pin 1 event 0E) replaces the ongoing card with a dismissible
+    Completed replaces the ongoing card with a dismissible
     Wash finished notification. Off or unknown/unavailable status clears it.
     Displayed time may be a duration or Delay End value.
   domain: automation
