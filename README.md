@@ -119,8 +119,24 @@ This is my prototype, not a recommended permanent mounting method or a qualified
 
 Reported by [@eyal0](https://github.com/eyal0) in [#3](https://github.com/kralonur/samsung-washer-monitor-esphome/issues/3) for his WF45R6100AP/US; not verified by me. The board is shown on [page 36 of the WF45R6100AP/US service manual](https://www.manualslib.com/manual/3313659/Samsung-Wf45r6100ap-Us.html?page=36#manual).
 
-- **UART:** the two signals are on the connector labelled **CN3**, connected to GPIO1 (pin 1 stream, all readings) and GPIO2 (pin 2 stream, raw diagnostics only), like CN803 above. Both run at **38400 baud**, 8N1.
-- **Power:** take 5 V from **CN6** only. Ground is common to CN3, CN5, CN6 and CN7, but the 5 V on CN5 and CN7 is a separate rail; powering the ESP from it made the washer's speaker misbehave and the ESP reboot.
+![DC92-02395A control-panel layout on the WF45R6100AP/US](docs/images/dc92-02395a-control-panel.webp)
+
+**This is the control-panel layout for DC92-02395A**, photographed by @eyal0 on his WF45R6100AP/US. Use it as a visual reference, and check the installed board is **DC92-02395A**; appearance alone does not confirm compatibility.
+
+- **UART:** the two signals are on the connector labelled **CN3**. **CN3 pin 4** carries the decoded stream (all readings) and goes to GPIO1; **CN3 pin 3** carries the raw-diagnostics stream and goes to GPIO2. Both run at **38400 baud**, 8N1.
+- **Power:** take 5 V from **CN6** only. Ground is common to CN3, CN5, CN6 and CN7, but the 5 V on CN5 and CN7 is a separate rail; powering the ESP from it made the washer's speaker misbehave and the ESP brown out and reboot.
+
+To reach the board, remove the control panel from the washer and release the clips on its back (marked below; there may be a couple more):
+
+![Back of the removed DC92-02395A control panel with the release clips circled](docs/images/dc92-02395a-panel-clips.webp)
+
+With the cover off, the board sits under a white plastic shield. **Leave the shield in place**: it snaps directly onto the display, and removing it risks cracking the screen. The connectors are reachable without removing it:
+
+![DC92-02395A board with 5 V and GND on CN6, and RX on CN3 pin 4 and TX on CN3 pin 3 marked](docs/images/dc92-02395a-pinout.webp)
+
+CN6 had no header fitted, so @eyal0 added a spare connector rather than using jumper wires. He back-probed CN3 and insulated it with Kapton tape; the green wire is RX (pin 4) and the yellow wire is TX (pin 3):
+
+![CN3 back-probed with green and yellow wires and insulated with Kapton tape](docs/images/dc92-02395a-back-probe.webp)
 
 The same 5 V→3.3 V level-translation requirement applies. A level shifter matters more here: 38400 baud leaves a resistor divider far less margin than 9600.
 
@@ -152,10 +168,10 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
 2. Add the entries from [`secrets.example.yaml`](firmware/secrets.example.yaml) to your private `secrets.yaml`. Generate an encryption key using the official [API documentation](https://esphome.io/components/api/#configuration-variables). Do not overwrite existing secrets or publish them.
 3. Review the board configuration and RX substitutions. The tested wiring matches the ESP32-C6 defaults:
 
-   | UART stream (CN803 on DC92-01950B, CN3 on DC92-02395A) | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
-   | --- | --- |
-   | Pin 1 | GPIO1 |
-   | Pin 2 | GPIO2 |
+   | UART stream | DC92-01950B | DC92-02395A | Through 5 V→3.3 V level shifter (recommended) or tested divider to ESP |
+   | --- | --- | --- | --- |
+   | Readings (`uart_id`) | CN803 pin 1 | CN3 pin 4 | GPIO1 |
+   | Raw diagnostics (`secondary_uart_id`) | CN803 pin 2 | CN3 pin 3 | GPIO2 |
 
    Both inputs use **8N1**. **DC92-01950B** uses **9600 baud**. **DC92-02395A** uses **38400 baud**. Verify connector numbering on your board; do not connect the 5 V UART signals directly to ESP GPIO. Prefer a proper 5 V→3.3 V UART level shifter over the prototype resistor dividers.
 4. In Device Builder, **Validate**, then **Install**. First USB installation requires every washer lead disconnected. Later updates can use network OTA (Wi-Fi or Thread).
@@ -166,8 +182,8 @@ Follow the official [ESPHome installation guide](https://esphome.io/install/) an
 The [`washer.yaml`](firmware/washer.yaml) example contains all supported entities for the DC92-01950B board. [`washer-dc92-02395a.yaml`](firmware/washer-dc92-02395a.yaml) is the same wiring with the entities that the DC92-02395A board decodes. Under `samsung_washer`:
 
 - `model` selects the control board. `DC92-01950B` (the default) is the 32-byte format and requires 9600 baud. `DC92-02395A` is the 33-byte format from the WF45R6100AP/US and requires 38400 baud. Both UART blocks use 8 data bits, no parity, and 1 stop bit. `dc92_02395a` is accepted as well.
-- `uart_id` selects the **pin 1** UART (CN803 on DC92-01950B, CN3 on DC92-02395A). This stream supplies all readings.
-- `secondary_uart_id` optionally selects the **pin 2** UART for raw diagnostics. Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
+- `uart_id` selects the readings UART, called the **pin 1** stream below (CN803 pin 1 on DC92-01950B, CN3 pin 4 on DC92-02395A). This stream supplies all readings.
+- `secondary_uart_id` optionally selects the **pin 2** stream UART for raw diagnostics (CN803 pin 2 on DC92-01950B, CN3 pin 3 on DC92-02395A). Omit it and its UART block if you only want the decoded readings. The two UART IDs must be different and cannot be shared with another reader. Do not enable UART debug `dummy_receiver`; the component reads the bytes itself.
 - Every entity block is optional. Standard ESPHome entity options such as `id`, `icon`, filters and automations remain available. Tracking does not depend on which entities you expose.
 - `uart_raw_capture` adds the diagnostic switch; it defaults to off after reboot. While on, it logs the raw bytes of pin 1 (and pin 2, if `secondary_uart_id` is set) in chunks of up to 64 bytes as hex under the `washer.raw` log tag, including malformed data, without transmitting anything.
 - `update_interval` defaults to `2s` and sets how often the UART link is checked. Five seconds without a valid pin 1 frame marks the link inactive and resets cycle status to Unknown. On `DC92-01950B`, a blank panel must persist for two seconds before reporting Off. On `DC92-02395A`, Off and Completed apply on the matching frame, and a blink must hold still for two seconds before the reading returns to `Paused`.
