@@ -97,10 +97,10 @@ class WasherCycleStatus {
 // frames: byte 29 is 0x03 for Off and 0x23 for Completed. A steady light is
 // Unknown until a blink is seen, since a cycle that has not started looks the
 // same as a pause. A blink that then holds still for two seconds is Paused.
-class WasherDc92CycleStatus {
+class WasherDc9202395aCycleStatus {
  public:
   static constexpr uint32_t kSteadyMs = 2000;
-  void reset() { *this = WasherDc92CycleStatus(); }
+  void reset() { *this = WasherDc9202395aCycleStatus(); }
   const char *status() const { return state_; }
   void feed(bool status_lit, bool panel_blank, uint8_t power, uint32_t now) {
     if (panel_blank && (power == 0x03 || power == 0x23)) {

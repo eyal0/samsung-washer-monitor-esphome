@@ -55,6 +55,28 @@ CONF_ALARM = "alarm"
 
 CONF_UART_RAW_CAPTURE = "uart_raw_capture"
 
+# Per model: pin 1 baud rate and the entities its frames cannot fill.
+MODEL_BAUD_RATES = {
+    "DC92-01950B": 9600,
+    "DC92-02395A": 38400,
+}
+MODEL_UNSUPPORTED = {
+    "DC92-01950B": (
+        CONF_SOIL_SELECTION,
+        CONF_CHILD_LOCK_INDICATOR,
+        CONF_STEAM_INDICATOR,
+        CONF_PRE_SOAK_INDICATOR,
+        CONF_DELAY_INDICATOR,
+        CONF_ALARM,
+    ),
+    "DC92-02395A": (
+        CONF_OPTION,
+        CONF_PANEL_ON,
+        CONF_BUBBLE_SOAK_INDICATOR,
+        CONF_EASY_IRON_INDICATOR,
+    ),
+}
+
 TEXT_SENSORS = (
     (CONF_CYCLE_STATUS, "set_cycle_status_text_sensor"),
     (CONF_PROGRAM_INDICATOR, "set_program_indicator_text_sensor"),
@@ -79,7 +101,16 @@ BINARY_SENSORS = (
     (CONF_ALARM, "set_alarm_binary_sensor"),
 )
 
-CONFIG_SCHEMA = (
+
+def _validate_model_entities(config: ConfigType) -> ConfigType:
+    model = config[CONF_MODEL]
+    for key in MODEL_UNSUPPORTED[model]:
+        if key in config:
+            raise cv.Invalid(f"{key} is not supported by model {model}", path=[key])
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SamsungWasherComponent),
@@ -152,16 +183,16 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("2s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_model_entities,
 )
 
 
 def _validate_uart_bus(config: ConfigType, uart_bus: str) -> None:
-    baud_rate = 38400 if config[CONF_MODEL] == "DC92-02395A" else 9600
     uart.final_validate_device_schema(
         "samsung_washer",
         uart_bus=uart_bus,
-        baud_rate=baud_rate,
+        baud_rate=MODEL_BAUD_RATES[config[CONF_MODEL]],
         require_rx=True,
         data_bits=8,
         parity="NONE",

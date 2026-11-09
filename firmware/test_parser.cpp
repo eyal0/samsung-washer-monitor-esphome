@@ -124,19 +124,19 @@ int main(int argc, char **argv) {
   expect(0x0e, false, "Completed"); // Can observe a finish after a reboot.
   cycle.reset(); // UART loss must also forget completion.
   expect(0, true, "Unknown");
-  WasherDc92CycleStatus dc92_cycle;
+  WasherDc9202395aCycleStatus dc92_cycle;
   assert(std::string(dc92_cycle.status()) == "Unknown");
   dc92_cycle.feed(true, false, 0x23, 0);
   assert(std::string(dc92_cycle.status()) == "Unknown"); // Steady light before a blink.
-  dc92_cycle.feed(true, false, 0x23, WasherDc92CycleStatus::kSteadyMs - 1);
+  dc92_cycle.feed(true, false, 0x23, WasherDc9202395aCycleStatus::kSteadyMs - 1);
   assert(std::string(dc92_cycle.status()) == "Unknown"); // Not yet started, so not Paused.
-  dc92_cycle.feed(false, false, 0x23, WasherDc92CycleStatus::kSteadyMs);
+  dc92_cycle.feed(false, false, 0x23, WasherDc9202395aCycleStatus::kSteadyMs);
   assert(std::string(dc92_cycle.status()) == "Running");
   dc92_cycle.feed(true, false, 0x23, 2500);
   assert(std::string(dc92_cycle.status()) == "Running");
-  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc92CycleStatus::kSteadyMs - 1);
+  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc9202395aCycleStatus::kSteadyMs - 1);
   assert(std::string(dc92_cycle.status()) == "Running"); // The held half of a blink.
-  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc92CycleStatus::kSteadyMs);
+  dc92_cycle.feed(true, false, 0x23, 2500 + WasherDc9202395aCycleStatus::kSteadyMs);
   assert(std::string(dc92_cycle.status()) == "Paused");
   dc92_cycle.feed(false, false, 0x23, 5000);
   assert(std::string(dc92_cycle.status()) == "Running");
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
   assert(std::string(dc92_cycle.status()) == "Completed");
   dc92_cycle.feed(true, false, 0x23, 12001);
   assert(std::string(dc92_cycle.status()) == "Unknown"); // Completion does not latch through the next panel.
-  dc92_cycle.feed(true, false, 0x23, 12001 + WasherDc92CycleStatus::kSteadyMs * 3);
+  dc92_cycle.feed(true, false, 0x23, 12001 + WasherDc9202395aCycleStatus::kSteadyMs * 3);
   assert(std::string(dc92_cycle.status()) == "Unknown"); // A steady light is not Paused before a new blink.
   dc92_cycle.feed(false, true, 0x03, 19000);
   assert(std::string(dc92_cycle.status()) == "Off");

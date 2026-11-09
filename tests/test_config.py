@@ -128,6 +128,22 @@ class ConfigTest(unittest.TestCase):
         ), False, "requires baud rate 38400")
         self.validate(BASE.replace("baud_rate: 9600", "baud_rate: 38400"), False, "requires baud rate 9600")
 
+    def test_model_rejects_unsupported_entities(self):
+        new_board = BASE.replace("baud_rate: 9600", "baud_rate: 38400").replace(
+            "  uart_id: primary\n", "  model: DC92-02395A\n  uart_id: primary\n"
+        )
+        for config, key, model in (
+            (BASE, "soil_selection", "DC92-01950B"),
+            (BASE, "alarm", "DC92-01950B"),
+            (new_board, "option", "DC92-02395A"),
+            (new_board, "panel_on", "DC92-02395A"),
+        ):
+            with self.subTest(model=model, key=key):
+                self.validate(
+                    config + f"  {key}:\n    name: Test\n", False,
+                    f"{key} is not supported by model {model}",
+                )
+
     def test_dummy_receiver_rejected(self):
         for pin in (1, 2):
             with self.subTest(pin=pin):
