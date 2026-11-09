@@ -41,6 +41,7 @@ uart:
     baud_rate: 9600
 
 samsung_washer:
+  model: DC92-01950B
   uart_id: cn803_pin1_uart
   secondary_uart_id: cn803_pin2_uart
   cycle_status:

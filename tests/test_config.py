@@ -66,6 +66,7 @@ class ConfigTest(unittest.TestCase):
         configs = {
             "example": example("washer.yaml"),
             "thread_example": example("washer-thread.yaml"),
+            "dc92_02395a_example": example("washer-dc92-02395a.yaml"),
             "minimal": BASE.replace("  secondary_uart_id: secondary\n", ""),
             "dual_uart": BASE,
             "cycle_only": BASE + "  cycle_status:\n    name: Cycle status\n",
@@ -112,6 +113,20 @@ class ConfigTest(unittest.TestCase):
             "  uart_id: primary\n  secondary_uart_id: secondary\n",
             "  - uart_id: primary\n  - uart_id: primary\n",
         ), False, "used both")
+
+    def test_model_selects_pcb(self):
+        new_board = BASE.replace("baud_rate: 9600", "baud_rate: 38400").replace(
+            "  uart_id: primary\n", "  model: dc92-02395a\n  uart_id: primary\n"
+        )
+        self.validate(new_board, True)
+        self.validate(new_board.replace("model: dc92-02395a", "model: dc92_02395a"), True)
+        self.validate(BASE.replace(
+            "  uart_id: primary\n", "  model: not-a-board\n  uart_id: primary\n"
+        ), False, "Unknown value")
+        self.validate(BASE.replace(
+            "  uart_id: primary\n", "  model: dc92-02395a\n  uart_id: primary\n"
+        ), False, "requires baud rate 38400")
+        self.validate(BASE.replace("baud_rate: 9600", "baud_rate: 38400"), False, "requires baud rate 9600")
 
     def test_dummy_receiver_rejected(self):
         for pin in (1, 2):
